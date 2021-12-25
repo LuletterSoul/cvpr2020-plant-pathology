@@ -72,16 +72,21 @@ def seed_reproducer(seed=2020):
 
 def init_hparams():
     parser = ArgumentParser(add_help=False)
-    parser.add_argument("-backbone", "--backbone", type=str, default="se_resnext50_32x4d")
+    parser.add_argument("-backbone",
+                        "--backbone",
+                        type=str,
+                        default="se_resnext50_32x4d")
+    parser.add_argument("--data_folder",
+                        default='/data/lxd/datasets/2021-12-12-Eggs')
     parser.add_argument("-tbs", "--train_batch_size", type=int, default=32 * 1)
     parser.add_argument("-vbs", "--val_batch_size", type=int, default=16 * 1)
     parser.add_argument("--num_workers", type=int, default=8)
-    parser.add_argument("--image_size", nargs="+", default=[480, 768])
-    parser.add_argument("--seed", type=int, default=2020)
+    parser.add_argument("--image_size", nargs="+", default=[700, 600])
+    parser.add_argument("--seed", type=int, default=2021)
     parser.add_argument("--max_epochs", type=int, default=70)
     parser.add_argument("--gpus", nargs="+", default=[0, 1])  # 输入1 2 3
     parser.add_argument("--precision", type=int, default=16)
-    parser.add_argument("--gradient_clip_val", type=float, default=1)
+    parser.add_argument("--gradient_clip_val", type=float, default=0)
     parser.add_argument("--soft_labels_filename", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="logs_submit")
     try:
@@ -99,7 +104,30 @@ def init_hparams():
 
 
 def load_data(logger, frac=1):
-    data, test_data = pd.read_csv("data/train.csv"), pd.read_csv("data/sample_submission.csv")
+    data, test_data = pd.read_csv("data/train.csv"), pd.read_csv(
+        "data/sample_submission.csv")
+    # Do fast experiment
+    if frac < 1:
+        logger.info(f"use frac : {frac}")
+        data = data.sample(frac=frac).reset_index(drop=True)
+        test_data = test_data.sample(frac=frac).reset_index(drop=True)
+    return data, test_data
+
+
+def load_training_data(logger, data_folder, frac=1):
+    data, test_data = pd.read_csv(os.path.join(
+        data_folder, 'train.csv')), pd.read_csv("data/sample_submission.csv")
+    # Do fast experiment
+    if frac < 1:
+        logger.info(f"use frac : {frac}")
+        data = data.sample(frac=frac).reset_index(drop=True)
+        test_data = test_data.sample(frac=frac).reset_index(drop=True)
+    return data, test_data
+
+
+def load_test_data(logger, data_folder, frac=1):
+    data, test_data = pd.read_csv(os.path.join(
+        data_folder, 'test.csv')), pd.read_csv("data/sample_submission.csv")
     # Do fast experiment
     if frac < 1:
         logger.info(f"use frac : {frac}")
@@ -153,9 +181,10 @@ def init_logger(log_name, log_dir=None):
 
         if log_dir is not None:
             # 日志等级INFO以上输出到{log_name}.log文件
-            file_info_handler = TimedRotatingFileHandler(
-                filename=os.path.join(log_dir, "%s.log" % log_name), when="D", backupCount=7
-            )
+            file_info_handler = TimedRotatingFileHandler(filename=os.path.join(
+                log_dir, "%s.log" % log_name),
+                                                         when="D",
+                                                         backupCount=7)
             file_info_handler.setFormatter(formatter)
             file_info_handler.setLevel(logging.INFO)
             logger.addHandler(file_info_handler)

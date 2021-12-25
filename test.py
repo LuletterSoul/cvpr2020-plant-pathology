@@ -11,7 +11,8 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 # Third party libraries
 import torch
-from dataset import generate_transforms, generate_dataloaders
+from torch.utils.data import dataloader
+from dataset import generate_test_dataloaders, generate_transforms, generate_dataloaders
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold
 
@@ -155,50 +156,26 @@ if __name__ == "__main__":
 
     # Do cross validation
     valid_roc_auc_scores = []
-    folds = KFold(n_splits=5, shuffle=True, random_state=hparams.seed)
-    for fold_i, (train_index, val_index) in enumerate(folds.split(data)):
-        hparams.fold_i = fold_i
-        train_data = data.iloc[train_index, :].reset_index(drop=True)
-        val_data = data.iloc[val_index, :].reset_index(drop=True)
-
-        train_dataloader, val_dataloader = generate_dataloaders(
-            hparams, train_data, val_data, transforms)
-
-        # Define callbacks
-        checkpoint_callback = ModelCheckpoint(
-            monitor="val_roc_auc",
-            save_top_k=6,
-            mode="max",
-            filepath=os.path.join(
-                hparams.log_dir, f"fold={fold_i}" +
-                "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"),
-        )
-        early_stop_callback = EarlyStopping(monitor="val_roc_auc",
-                                            patience=10,
-                                            mode="max",
-                                            verbose=True)
-
-        # Instance Model, Trainer and train model
-        model = CoolSystem(hparams)
-        trainer = pl.Trainer(
-            gpus=hparams.gpus,
-            min_epochs=1,
-            max_epochs=hparams.max_epochs,
-            early_stop_callback=early_stop_callback,
-            checkpoint_callback=checkpoint_callback,
-            progress_bar_refresh_rate=0,
-            precision=hparams.precision,
-            num_sanity_val_steps=0,
-            profiler=False,
-            weights_summary=None,
-            use_dp=True,
-            gradient_clip_val=hparams.gradient_clip_val,
-        )
-        trainer.fit(model, train_dataloader, val_dataloader)
-
-        valid_roc_auc_scores.append(round(checkpoint_callback.best, 4))
-        logger.info(valid_roc_auc_scores)
-
-        del model
-        gc.collect()
-        torch.cuda.empty_cache()
+    test_dataloaders = generate_test_dataloaders(hparams, test_data,
+                                                 transforms)
+    model = CoolSystem(hparams)
+    model.load_from_checkpoint(checkpoint_path='/data/lxd/project/cvpr2020-plant-pathology/logs_submit/fold=0-epoch=65-val_loss=0.1216-val_roc_auc=0.9968.ckpt')
+    model.eval()
+    trainer = pl.Trainer(
+        gpus=hparams.gpus,
+        min_epochs=70,
+        max_epochs=hparams.max_epochs,
+        progress_bar_refresh_rate=0,
+        precision=hparams.precision,
+        num_sanity_val_steps=0,
+        profiler=False,
+        weights_summary=None,
+        use_dp=True,
+        gradient_clip_val=hparams.gradient_clip_val,
+    )
+    # trainer.fit(model, train_dataloader, val_dataloader)
+    trainer.test(dataloaders=test_dataloaders, )
+    logger.info(valid_roc_auc_scores)
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
