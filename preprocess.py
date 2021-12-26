@@ -30,9 +30,9 @@ def write_csv(csv_instance, class_dir, image_ids):
         print(f'Processing {image_id}')
 
 
-with open(os.path.join(output_dir, 'train.csv'), 'a',
+with open(os.path.join(output_dir, 'train_4_3.csv'), 'a',
           newline='') as train_file:
-    with open(os.path.join(output_dir, 'test.csv'), 'a',
+    with open(os.path.join(output_dir, 'test_4_1.csv'), 'a',
               newline='') as test_file:
         train_writer = csv.writer(train_file)
         test_writer = csv.writer(test_file)
@@ -41,10 +41,10 @@ with open(os.path.join(output_dir, 'train.csv'), 'a',
             if os.path.isdir(class_path):
                 image_ids = [
                     os.path.join(class_dir, image_id)
-                    for image_id in os.listdir(class_path)
+                    for image_id in os.listdir(class_path) if image_id.endswith('.bmp')
                 ]
                 random.shuffle(image_ids)
-                train_image_ids = image_ids[:len(image_ids) // 2]
-                test_image_ids = image_ids[len(image_ids) // 2:]
+                train_image_ids = image_ids[:len(image_ids) // 4 * 3]
+                test_image_ids = image_ids[len(image_ids) // 4 * 3:]
                 write_csv(train_writer, class_dir, train_image_ids)
                 write_csv(test_writer, class_dir, test_image_ids)

@@ -99,14 +99,13 @@ class OpticalCandlingDataset(Dataset):
         else:
             self.soft_labels = pd.read_csv(soft_labels_filename)
 
+
     def __getitem__(self, index):
         start_time = time()
         # Read image
         # solution-1: read from raw image
-        image = cv2.cvtColor(
-            cv2.imread(os.path.join(self.data_folder, self.data.iloc[index,
-                                                                     0])),
-            cv2.COLOR_BGR2RGB)
+        path = os.path.join(self.data_folder, self.data.iloc[index,0])
+        image = cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
         # solution-2: read from npy file which can speed the data load time.
         # image = np.load(os.path.join(NPY_FOLDER, "raw", self.data.iloc[index, 0] + ".npy"))
 

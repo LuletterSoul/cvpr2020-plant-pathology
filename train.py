@@ -182,7 +182,7 @@ if __name__ == "__main__":
         model = CoolSystem(hparams)
         trainer = pl.Trainer(
             gpus=hparams.gpus,
-            min_epochs=1,
+            min_epochs=hparams.min_epochs,
             max_epochs=hparams.max_epochs,
             early_stop_callback=early_stop_callback,
             checkpoint_callback=checkpoint_callback,
@@ -199,6 +199,9 @@ if __name__ == "__main__":
         valid_roc_auc_scores.append(round(checkpoint_callback.best, 4))
         logger.info(valid_roc_auc_scores)
 
+        del trainer
         del model
+        del train_dataloader
+        del val_dataloader
         gc.collect()
         torch.cuda.empty_cache()

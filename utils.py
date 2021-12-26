@@ -79,10 +79,11 @@ def init_hparams():
     parser.add_argument("--data_folder",
                         default='/data/lxd/datasets/2021-12-12-Eggs')
     parser.add_argument("-tbs", "--train_batch_size", type=int, default=32 * 1)
-    parser.add_argument("-vbs", "--val_batch_size", type=int, default=16 * 1)
+    parser.add_argument("-vbs", "--val_batch_size", type=int, default=32 * 1)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--image_size", nargs="+", default=[700, 600])
     parser.add_argument("--seed", type=int, default=2021)
+    parser.add_argument("--min_epochs", type=int, default=70)
     parser.add_argument("--max_epochs", type=int, default=70)
     parser.add_argument("--gpus", nargs="+", default=[0, 1])  # 输入1 2 3
     parser.add_argument("--precision", type=int, default=16)
@@ -116,7 +117,7 @@ def load_data(logger, frac=1):
 
 def load_training_data(logger, data_folder, frac=1):
     data, test_data = pd.read_csv(os.path.join(
-        data_folder, 'train.csv')), pd.read_csv("data/sample_submission.csv")
+        data_folder, 'train_4_3.csv')), pd.read_csv("data/sample_submission.csv")
     # Do fast experiment
     if frac < 1:
         logger.info(f"use frac : {frac}")
