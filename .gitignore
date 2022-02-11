@@ -3,3 +3,4 @@ lightning_logs
 logs_submit*
 __pycache__
 outputs
+test_results

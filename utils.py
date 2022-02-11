@@ -128,7 +128,7 @@ def load_training_data(logger, data_folder, frac=1):
 
 def load_test_data(logger, data_folder, frac=1):
     data, test_data = pd.read_csv(os.path.join(
-        data_folder, 'test.csv')), pd.read_csv("data/sample_submission.csv")
+        data_folder, 'test_4_1.csv')), pd.read_csv("data/sample_submission.csv")
     # Do fast experiment
     if frac < 1:
         logger.info(f"use frac : {frac}")

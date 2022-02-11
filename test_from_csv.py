@@ -6,6 +6,7 @@
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 import numpy as np
+import time
 import os
 
 # Third party libraries
@@ -36,13 +37,17 @@ def save_csv_confusion_matrix(confusion_matrix, output_dir, class_names):
 
 if __name__ == "__main__":
     # Init Hyperparameters
-    test_result_files= ['submission_distill_five.csv', 'submission_distill_five_no_aug.csv','submission_distill_one.csv','submission_distill_one_no_aug.csv']
+    # test_result_files= ['submission_distill_five.csv', 'submission_distill_five_no_aug.csv','submission_distill_one.csv','submission_distill_one_no_aug.csv']
+    test_dir = 'test_results'
+    test_result_files= os.listdir(test_dir)
     hparams = init_hparams()
 
     # Make experiment reproducible
     seed_reproducer(hparams.seed)
 
-    output_dir = 'outputs'
+    tiemstamp = time.strftime("%Y%m%d-%H%M", time.localtime()) 
+
+    output_dir = f'outputs/{tiemstamp}'
     # init logger
     logger = init_logger("kun_out", log_dir=hparams.log_dir)
 
@@ -53,7 +58,7 @@ if __name__ == "__main__":
     # Load data
     test_data, data = load_test_data(logger, hparams.data_folder)
     for pred_file in test_result_files:
-        pred_data = pd.read_csv(pred_file)
+        pred_data = pd.read_csv(os.path.join(test_dir, pred_file))
         filename = os.path.splitext(pred_file)[0]
 
         gt_labels = test_data.iloc[:, 1:].to_numpy()
