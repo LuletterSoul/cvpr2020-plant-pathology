@@ -55,21 +55,28 @@ if __name__ == "__main__":
 
     class_names = ['OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak']
     bn_class_names = ['OK', 'NoOK']
-    # Load data
+    # Load test data
     test_data, data = load_test_data(logger, hparams.data_folder)
     for pred_file in test_result_files:
         pred_data = pd.read_csv(os.path.join(test_dir, pred_file))
         filename = os.path.splitext(pred_file)[0]
 
+        # Read ground truth labels from test data.
+        # The label format is one-hot vector.
         gt_labels = test_data.iloc[:, 1:].to_numpy()
         pred_labels = pred_data.iloc[:, 1:].to_numpy()
 
+        # Convert one-hot to class label.
         gt_labels = np.argmax(gt_labels, axis=1)
         pred_labels = np.argmax(pred_labels, axis=1)
 
+        # Convert to binary classification
         bn_gt_labels = gt_labels.copy()
         bn_pred_labels = pred_labels.copy()
 
+        # All the labels of bad eggs are set to 1
+        # 0 represents good eggs
+        # 1 represents bad eggs
         bn_gt_labels[bn_gt_labels!=0] = 1
         bn_pred_labels[bn_pred_labels!=0] = 1
 
