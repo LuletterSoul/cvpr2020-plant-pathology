@@ -38,8 +38,6 @@ if __name__ == "__main__":
     # Generate transforms
     transforms = generate_transforms(hparams.image_size)
 
-    early_stop_callback = EarlyStopping(monitor="val_roc_auc", patience=10, mode="max", verbose=True)
-
     # Instance Model, Trainer and train model
     model = CoolSystem(hparams)
 
