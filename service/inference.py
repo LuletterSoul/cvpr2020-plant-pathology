@@ -38,7 +38,8 @@ def worker(model_index, checkpoint,
     logger = init_logger("kun_out", log_dir=hparams.log_dir)
 
     # Generate transforms
-    transforms = generate_transforms(hparams.image_size)['val_transforms']
+    # transforms = generate_transforms(hparams.image_size)['val_transforms']
+    transforms = generate_transforms(hparams.image_size)['train_transforms']
 
     # Instance Model, Trainer and train model
     model = CoolSystem(hparams).cuda()
@@ -85,7 +86,7 @@ if __name__ == "__main__":
     image_path = '/data/lxd/datasets/2021-12-12-Eggs/Weak/174409520_Egg3_(ruopei--ok)_L_0_cam3.bmp'
 
     image = cv2.cvtColor(cv2.imread(image_path),cv2.COLOR_BGR2RGB)
-    image = image.transpose(1, 0, 2)
+    # image = image.transpose(1, 0, 2)
 
     submission = []
     PATH = [

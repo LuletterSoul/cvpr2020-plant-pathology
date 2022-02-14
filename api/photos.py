@@ -14,18 +14,11 @@ from flask_restplus import Namespace, Resource, reqparse
 from werkzeug.datastructures import FileStorage
 from service import *
 from PIL import Image
-import io
 import cv2
+import io
+import numpy as np
 
 api = Namespace('photos', description='Photo Transmition')
-# create data storage directory
-# os.makedirs(Config.CONTENT_DIRECTORY, exist_ok=True)
-# os.makedirs(Config.CAST_DATA_DIR, exist_ok=True)
-
-image_all = reqparse.RequestParser()
-image_all.add_argument('page', default=1, type=int)
-image_all.add_argument('size', default=50, type=int, required=False)
-image_all.add_argument('category', default='', type=str, required=False)
 
 image_upload = reqparse.RequestParser()
 image_upload.add_argument('file', location='files',
@@ -41,12 +34,13 @@ class Photos(Resource):
         args = image_upload.parse_args()
         image = args['file']
 
-        image_path = '/data/lxd/datasets/2021-12-12-Eggs/Weak/174409520_Egg3_(ruopei--ok)_L_0_cam3.bmp'
-        image = cv2.cvtColor(cv2.imread(image_path),cv2.COLOR_BGR2RGB)
-        image = image.transpose(1, 0, 2)
+        # image_path = '/data/lxd/datasets/2021-12-12-Eggs/Weak/174409520_Egg3_(ruopei--ok)_L_0_cam3.bmp'
+        # image = cv2.cvtColor(cv2.imread(image_path),cv2.COLOR_BGR2RGB)
+        # image = image.transpose(1, 0, 2)
 
-        # pil_image = Image.open(io.BytesIO(image.read()))
-        # image = pil_image.convert('RGB')
+        pil_image = Image.open(io.BytesIO(image.read()))
+        image = pil_image.convert('RGB')
+        image = np.array(image)
         # pil_image.save(path)
 
         submission = []
