@@ -60,7 +60,7 @@ def worker(model_index, checkpoint,
             preds = model(image)
             preds = preds.detach().cpu().numpy()
             output_pipe.put(preds)
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
             logger.info(
                 f'Classifier [{model_index}]: Done.')
         except Empty as e:

@@ -33,12 +33,15 @@ def create_app():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host', type=str, default='0.0.0.0', help='ip address of flask server in local network.')
+    parser.add_argument('--host', type=str, default='10.8.0.94', help='ip address of flask server in local network.')
     parser.add_argument('--port', type=int, default=5000, help='listening port of flask server in local network.')
+    # parser.add_argument('--host', type=str, default='0.0.0.0', help='ip address of flask server in local network.')
+    # parser.add_argument('--host', type=str, default='192.168.0.28', help='ip address of flask server in local network.')
+    # parser.add_argument('--port', type=int, default=9527, help='listening port of flask server in local network.')
     parser.add_argument('--debug', type=bool, default=False, help='listening port of flask server in local network.')
 
     args = parser.parse_args()
     app = create_app()
     model_thread = threading.Thread(target=service.run)
     model_thread.start()
-    app.run()
+    app.run(host=args.host, port=args.port)

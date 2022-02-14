@@ -10,6 +10,7 @@
 @version 1.0
 @desc:
 """
+from time import time
 from flask_restplus import Namespace, Resource, reqparse
 from werkzeug.datastructures import FileStorage
 from service import *
@@ -45,12 +46,15 @@ class Photos(Resource):
         # pil_image.save(path)
 
         submission = []
+        start = time()
         for idx in range(len(input_entry)):
             input_entry[idx].put(image)
         
         for idx in range(len(output_entry)):
             res = output_entry[idx].get()
             submission.append(res)
+        end = time()
 
+        print(f'Inference time {end - start: .2f}')
         return assemble_result(submission)
 
