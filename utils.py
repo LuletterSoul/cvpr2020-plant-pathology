@@ -94,7 +94,6 @@ def init_hparams():
         hparams = parser.parse_args()
     except:
         hparams = parser.parse_args([])
-    print(type(hparams.gpus), hparams.gpus)
     if len(hparams.gpus) == 1:
         hparams.gpus = [int(hparams.gpus[0])]
     else:
