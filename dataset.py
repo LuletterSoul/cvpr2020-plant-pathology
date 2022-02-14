@@ -112,8 +112,9 @@ class OpticalCandlingDataset(Dataset):
         if image is None:
             raise Exception('')
         # Convert if not the right shape
-        # if image.shape != IMG_SHAPE:
-            # image = image.transpose(1, 0, 2)
+        if image.shape != IMG_SHAPE:
+            image = image.transpose(1, 0, 2)
+            print(image.shape)
 
         # Do data augmentation
         if self.transforms is not None:

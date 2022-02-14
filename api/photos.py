@@ -41,6 +41,7 @@ class Photos(Resource):
         pil_image = Image.open(io.BytesIO(image.read()))
         image = pil_image.convert('RGB')
         image = np.array(image)
+        image = image.transpose(1, 0, 2)
         # pil_image.save(path)
 
         submission = []

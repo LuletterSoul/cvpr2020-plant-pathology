@@ -6,6 +6,7 @@ import cv2
 # Third party libraries
 from scipy.special import softmax
 from tqdm import tqdm
+import gc
 
 # User defined libraries
 from dataset import OpticalCandlingDataset, generate_transforms, PlantDataset
@@ -59,7 +60,9 @@ def worker(model_index, checkpoint,
             preds = model(image)
             preds = preds.detach().cpu().numpy()
             output_pipe.put(preds)
-            # print(preds)
+            torch.cuda.empty_cache()
+            logger.info(
+                f'Classifier [{model_index}]: Done.')
         except Empty as e:
             pass
         except Exception as e:

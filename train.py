@@ -6,6 +6,7 @@
 import os
 import gc
 from time import time
+import time as ts
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
@@ -139,10 +140,18 @@ class CoolSystem(pl.LightningModule):
 
 if __name__ == "__main__":
     # Make experiment reproducible
-    seed_reproducer(2021)
+    seed_reproducer(2022)
 
     # Init Hyperparameters
     hparams = init_hparams()
+
+    timestamp = ts.strftime("%Y%m%d-%H%M", ts.localtime()) 
+
+    output_dir = os.path.join(hparams.log_dir, timestamp)
+
+    hparams.log_dir = output_dir
+
+    os.makedirs(hparams.log_dir, exist_ok=True)
 
     # init logger
     logger = init_logger("kun_out", log_dir=hparams.log_dir)

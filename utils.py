@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-IMG_SHAPE = (1365, 2048, 3)
+IMG_SHAPE = (700, 600, 3)
 # IMAGE_FOLDER = "/home/public_data_center/kaggle/plant_pathology_2020/images"
 IMAGE_FOLDER = "data/images"
 NPY_FOLDER = "/home/public_data_center/kaggle/plant_pathology_2020/npys"
@@ -82,7 +82,7 @@ def init_hparams():
     parser.add_argument("-vbs", "--val_batch_size", type=int, default=32 * 1)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--image_size", nargs="+", default=[700, 600])
-    parser.add_argument("--seed", type=int, default=2021)
+    parser.add_argument("--seed", type=int, default=2022)
     parser.add_argument("--min_epochs", type=int, default=70)
     parser.add_argument("--max_epochs", type=int, default=70)
     parser.add_argument("--gpus", nargs="+", default=[0, 1])  # 输入1 2 3
