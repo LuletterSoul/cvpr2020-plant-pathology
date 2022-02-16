@@ -60,6 +60,7 @@ output_dir = '/Users/shandalau/Documents/2022-02-13-Eggs-Test-Result'
 result_dir = os.path.join(output_dir, 'results')
 no_ok_dir = os.path.join(output_dir, 'no_ok')
 bn_class_names = ['OK', 'NoOK']
+# bn_class_names = ['好蛋', '气室抖动', '死胚', '空', '无气室', '裂纹', '弱胚']
 
 os.makedirs(result_dir, exist_ok=True)
 os.makedirs(no_ok_dir, exist_ok=True)
