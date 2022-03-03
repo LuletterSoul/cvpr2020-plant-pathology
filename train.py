@@ -30,8 +30,10 @@ class CoolSystem(pl.LightningModule):
 
         # 让每次模型初始化一致, 不让只要中间有再次初始化的情况, 结果立马跑偏
         seed_reproducer(self.hparams.seed)
-
-        self.model = se_resnext50_32x4d()
+        self.num_classes = len([dirname for dirname in 
+        os.listdir(self.hparams.data_folder) 
+        if os.path.isdir(os.path.join(self.hparams.data_folder, dirname))])
+        self.model = se_resnext50_32x4d(num_classes=self.num_classes)
         self.criterion = CrossEntropyLossOneHot()
         self.logger_kun = init_logger("kun_in", hparams.log_dir)
 

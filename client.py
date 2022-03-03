@@ -55,8 +55,8 @@ class_label_to_name = {0: 'ok', 1: 'qishihuangdong', 2 : 'sipei', 3: 'kongliao',
 name_to_class_label = {'ok': 0 , 'qishihuangdong' : 1, 'sipei' : 1, 'kongliao' : 1, 'wuqishi' : 1, 'liewen' : 1, 'ruopei' : 1}
 # name_to_class_label = {'ok': 0 , 'qishihuangdong' : 1, 'sipei' : 2, 'kongliao' : 3, 'wuqishi' : 4, 'liewen' : 5, 'ruopei' : 6}
 
-test_file_path= '/Users/shandalau/Documents/2022-02-13-Eggs-Test'
-output_dir = '/Users/shandalau/Documents/2022-02-13-Eggs-Test-Result'
+test_file_path= '/Users/luvletteru/Documents/2022-02-13-Eggs-Test'
+output_dir = '/Users/luvletteru/Documents/2022-02-16-Eggs-Test-Result'
 result_dir = os.path.join(output_dir, 'results')
 no_ok_dir = os.path.join(output_dir, 'no_ok')
 bn_class_names = ['OK', 'NoOK']

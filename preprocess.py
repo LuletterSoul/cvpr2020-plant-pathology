@@ -4,8 +4,8 @@ import numpy as np
 import csv
 import random
 
-input_dir = '/data/lxd/datasets/2021-12-12-Eggs'
-output_dir = '/data/lxd/datasets/2021-12-12-Eggs'
+input_dir = '/data/lxd/datasets/2022-03-02-Eggs'
+output_dir = '/data/lxd/datasets/2022-03-02-Eggs'
 
 label_map = {
     'OK': 0,
@@ -14,11 +14,12 @@ label_map = {
     'Empty': 3,
     'NoAirRoom': 4,
     'Split': 5,
-    'Weak': 6
+    'Weak': 6,
+    'Flower': 7
 }
 
 class_dirs = os.listdir(input_dir)
-one_hot_vector = [0 for i in range(7)]
+one_hot_vector = [0 for _ in range(len(label_map.keys()))]
 
 
 def write_csv(csv_instance, class_dir, image_ids):
@@ -30,9 +31,9 @@ def write_csv(csv_instance, class_dir, image_ids):
         print(f'Processing {image_id}')
 
 
-with open(os.path.join(output_dir, 'train_4_3.csv'), 'a',
+with open(os.path.join(output_dir, 'train_4_3.csv'), 'w',
           newline='') as train_file:
-    with open(os.path.join(output_dir, 'test_4_1.csv'), 'a',
+    with open(os.path.join(output_dir, 'test_4_1.csv'), 'w',
               newline='') as test_file:
         train_writer = csv.writer(train_file)
         test_writer = csv.writer(test_file)

@@ -76,8 +76,10 @@ def init_hparams():
                         "--backbone",
                         type=str,
                         default="se_resnext50_32x4d")
+    # parser.add_argument("--data_folder",
+                        # default='/data/lxd/datasets/2021-12-12-Eggs')
     parser.add_argument("--data_folder",
-                        default='/data/lxd/datasets/2021-12-12-Eggs')
+                        default='/data/lxd/datasets/2022-03-02-Eggs')
     parser.add_argument("-tbs", "--train_batch_size", type=int, default=32 * 1)
     parser.add_argument("-vbs", "--val_batch_size", type=int, default=32 * 1)
     parser.add_argument("--num_workers", type=int, default=8)
