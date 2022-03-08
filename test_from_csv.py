@@ -3,6 +3,9 @@
 # @Last Modified by:   yican
 # @Last Modified time: 2020-07-07 14:48:03
 # Standard libraries
+from pydoc import classname
+import shutil
+from unicodedata import name
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 import numpy as np
@@ -19,7 +22,7 @@ from tqdm import tqdm
 # User defined libraries
 from dataset import OpticalCandlingDataset, generate_transforms, PlantDataset
 from train import CoolSystem
-from utils import init_hparams, init_logger, load_test_data, seed_reproducer, load_data
+from utils import init_hparams, init_logger, load_test_data, load_test_data_with_header, seed_reproducer, load_data
 import pandas as pd
 
 
@@ -34,6 +37,27 @@ def save_csv_confusion_matrix(confusion_matrix, output_dir, class_names):
     cm.to_csv(output_dir, index=False)
 
 
+def save_false_negative(data_folder, pred_data, gt_data, class_names, output_dir):
+    """select the false negative samples based on predictions and ground truth
+
+    Args:
+        data_folder (_type_): _description_
+        pred_data (_type_): _description_
+        gt_data (_type_): _description_
+        class_names (_type_): _description_
+        output_dir (_type_): _description_
+    """
+    for class_name in class_names[1:]:
+        selected_pred = pred_data[gt_data[class_name] == 1]         
+        false_positive = selected_pred[selected_pred['pred_class'] == 'OK']
+        file_names = false_positive['filename']
+        class_output_dir = os.path.join(output_dir, class_name)
+        os.makedirs(class_output_dir, exist_ok=True)
+        for filename in file_names:
+            file_path = os.path.join(data_folder, filename)
+            shutil.copy(file_path, class_output_dir)
+            print(f'Copied file {file_path} to {class_output_dir}')
+        print(f'{class_name}: {false_positive.shape[0]}')
 
 if __name__ == "__main__":
     # Init Hyperparameters
@@ -45,26 +69,37 @@ if __name__ == "__main__":
     # Make experiment reproducible
     seed_reproducer(hparams.seed)
 
-    tiemstamp = time.strftime("%Y%m%d-%H%M", time.localtime()) 
+    timestamp = time.strftime("%Y%m%d-%H%M", time.localtime()) 
 
-    output_dir = f'outputs/{tiemstamp}'
+    output_dir = f'outputs/{timestamp}'
+
+    fn_output_dir = os.path.join(output_dir, 'fn')
+
     # init logger
     logger = init_logger("kun_out", log_dir=hparams.log_dir)
 
     os.makedirs(output_dir,exist_ok=True)
 
-    class_names = ['OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak']
+    class_names = ['OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak', 'Flower']
+
     bn_class_names = ['OK', 'NoOK']
-    # Load test data
-    test_data, data = load_test_data(logger, hparams.data_folder)
+
+    header_names = ['filename'] + class_names 
+    gt_data, data = load_test_data_with_header(logger, hparams.data_folder, header_names)
+    # print(test_data[:10])
     for pred_file in test_result_files:
-        pred_data = pd.read_csv(os.path.join(test_dir, pred_file))
+        pred_data = pd.read_csv(os.path.join(test_dir, pred_file), names=header_names)
+        # Exclude first column (filename), and calculate the the prediction results, which is appended to the last column.
+        pred_data['pred_class'] = pred_data.iloc[:, 1:].idxmax(axis=1)
+        # print(pred_data[:10])
         filename = os.path.splitext(pred_file)[0]
+
+        save_false_negative(hparams.data_folder, pred_data, gt_data,  class_names, fn_output_dir)
 
         # Read ground truth labels from test data.
         # The label format is one-hot vector.
-        gt_labels = test_data.iloc[:, 1:].to_numpy()
-        pred_labels = pred_data.iloc[:, 1:].to_numpy()
+        gt_labels = gt_data.iloc[:, 1:].to_numpy()
+        pred_labels = pred_data.iloc[:, 1:-1].to_numpy()
 
         # Convert one-hot to class label.
         gt_labels = np.argmax(gt_labels, axis=1)

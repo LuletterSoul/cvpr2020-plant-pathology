@@ -190,6 +190,7 @@ def generate_dataloaders(hparams, train_data, val_data, transforms):
         data=val_data,
         transforms=transforms["val_transforms"],
         soft_labels_filename=hparams.soft_labels_filename)
+    print(hparams.num_workers)
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=hparams.train_batch_size,

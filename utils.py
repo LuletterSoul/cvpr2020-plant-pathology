@@ -9,6 +9,7 @@ import random
 from argparse import ArgumentParser
 from logging import Logger
 from logging.handlers import TimedRotatingFileHandler
+from tkinter.font import names
 
 # Third party libraries
 import cv2
@@ -82,7 +83,7 @@ def init_hparams():
                         default='/data/lxd/datasets/2022-03-02-Eggs')
     parser.add_argument("-tbs", "--train_batch_size", type=int, default=32 * 1)
     parser.add_argument("-vbs", "--val_batch_size", type=int, default=32 * 1)
-    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--num_workers", type=int, default=16)
     parser.add_argument("--image_size", nargs="+", default=[700, 600])
     parser.add_argument("--seed", type=int, default=2022)
     parser.add_argument("--min_epochs", type=int, default=70)
@@ -136,6 +137,17 @@ def load_test_data(logger, data_folder, frac=1):
         data = data.sample(frac=frac).reset_index(drop=True)
         test_data = test_data.sample(frac=frac).reset_index(drop=True)
     return data, test_data
+
+def load_test_data_with_header(logger, data_folder, header_names, frac=1):
+    data, test_data = pd.read_csv(os.path.join(
+        data_folder, 'test_4_1.csv'), names=header_names), pd.read_csv("data/sample_submission.csv")
+    # Do fast experiment
+    # if frac < 1:
+        # logger.info(f"use frac : {frac}")
+        # data = data.sample(frac=frac).reset_index(drop=True)
+        # test_data = test_data.sample(frac=frac).reset_index(drop=True)
+    return data, test_data
+
 
 
 def init_logger(log_name, log_dir=None):
