@@ -58,12 +58,12 @@ def save_false_negative(data_folder, pred_data, gt_data, class_names, output_dir
             shutil.copy(file_path, class_output_dir)
             print(f'Copied file {file_path} to {class_output_dir}')
         print(f'{class_name}: {false_positive.shape[0]}')
-
+thresh = [0.9, 0.8, 0.7, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
 if __name__ == "__main__":
     # Init Hyperparameters
     # test_result_files= ['submission_distill_five.csv', 'submission_distill_five_no_aug.csv','submission_distill_one.csv','submission_distill_one_no_aug.csv']
     test_dir = 'test_results'
-    test_result_files= os.listdir(test_dir)
+    test_result_files= [filename for filename in os.listdir(test_dir) if filename.endswith('.csv')]
     hparams = init_hparams()
 
     # Make experiment reproducible
@@ -101,6 +101,9 @@ if __name__ == "__main__":
         gt_labels = gt_data.iloc[:, 1:].to_numpy()
         pred_labels = pred_data.iloc[:, 1:-1].to_numpy()
 
+
+        thresh_pred_labels = np.concatenate([pred_labels[:, [0]],pred_labels[:, 1:].sum(axis=1, keepdims=True)], axis = 1)
+
         # Convert one-hot to class label.
         gt_labels = np.argmax(gt_labels, axis=1)
         pred_labels = np.argmax(pred_labels, axis=1)
@@ -109,11 +112,24 @@ if __name__ == "__main__":
         bn_gt_labels = gt_labels.copy()
         bn_pred_labels = pred_labels.copy()
 
+
         # All the labels of bad eggs are set to 1
         # 0 represents good eggs
         # 1 represents bad eggs
         bn_gt_labels[bn_gt_labels!=0] = 1
         bn_pred_labels[bn_pred_labels!=0] = 1
+
+
+
+        for th in thresh:
+            th_pred_labels = np.argmax((thresh_pred_labels > th).astype(int), axis=1)
+            # th_pred_labels[th_pred_labels!=0] = 1
+            th_output_dir = os.path.join(output_dir, 'th')
+            os.makedirs(th_output_dir, exist_ok=True)
+            th_confusion_matrix =metrics.confusion_matrix(bn_gt_labels, th_pred_labels)
+            th_report = metrics.classification_report(bn_gt_labels, th_pred_labels, target_names=bn_class_names, output_dict=True)
+            save_csv_report(th_report, os.path.join(th_output_dir,f'TH_Report_{filename}_th_{th}.csv'), bn_class_names)
+            save_csv_confusion_matrix(th_confusion_matrix, os.path.join(th_output_dir,f'TH_CM_{filename}_th_{th}.csv'), bn_class_names)
 
 
         confusion_matrix =metrics.confusion_matrix(gt_labels, pred_labels)

@@ -35,6 +35,18 @@ from utils import IMAGE_FOLDER, IMG_SHAPE
 # from utils import NPY_FOLDER
 
 
+def img_denorm(image, mean, std): 
+    #for ImageNet the mean and std are:
+    #mean = np.asarray([ 0.485, 0.456, 0.406 ])
+    #std = np.asarray([ 0.229, 0.224, 0.225 ])
+    std = torch.tensor(std).reshape(1, -1, 1, 1)
+    mean = torch.tensor(mean).reshape(-1, 1, 1)
+    # mean = -1 * mean / std
+    # std = 1.0 / std
+    image = image * std + mean
+    return torch.clamp(image, 0, 1)
+    
+
 class PlantDataset(Dataset):
     """ Do normal training
     """
@@ -119,7 +131,7 @@ class OpticalCandlingDataset(Dataset):
         # Do data augmentation
         if self.transforms is not None:
             image = self.transforms(image=image)["image"].transpose(2, 0, 1)
-
+        
         # Soft label
         if self.soft_labels is not None:
             label = torch.FloatTensor(
@@ -190,7 +202,6 @@ def generate_dataloaders(hparams, train_data, val_data, transforms):
         data=val_data,
         transforms=transforms["val_transforms"],
         soft_labels_filename=hparams.soft_labels_filename)
-    print(hparams.num_workers)
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=hparams.train_batch_size,

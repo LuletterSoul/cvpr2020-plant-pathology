@@ -4,3 +4,5 @@ logs_submit*
 __pycache__
 outputs
 test_results
+torch-cam
+.vscode
