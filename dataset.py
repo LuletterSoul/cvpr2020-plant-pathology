@@ -34,18 +34,7 @@ from utils import IMAGE_FOLDER, IMG_SHAPE
 # for fast read data
 # from utils import NPY_FOLDER
 
-
-def img_denorm(image, mean, std): 
-    #for ImageNet the mean and std are:
-    #mean = np.asarray([ 0.485, 0.456, 0.406 ])
-    #std = np.asarray([ 0.229, 0.224, 0.225 ])
-    std = torch.tensor(std).reshape(1, -1, 1, 1)
-    mean = torch.tensor(mean).reshape(-1, 1, 1)
-    # mean = -1 * mean / std
-    # std = 1.0 / std
-    image = image * std + mean
-    return torch.clamp(image, 0, 1)
-    
+   
 
 class PlantDataset(Dataset):
     """ Do normal training
@@ -116,7 +105,8 @@ class OpticalCandlingDataset(Dataset):
         start_time = time()
         # Read image
         # solution-1: read from raw image
-        path = os.path.join(self.data_folder, self.data.iloc[index,0])
+        filename = self.data.iloc[index,0]
+        path = os.path.join(self.data_folder, filename)
         image = cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
         # solution-2: read from npy file which can speed the data load time.
         # image = np.load(os.path.join(NPY_FOLDER, "raw", self.data.iloc[index, 0] + ".npy"))
@@ -142,7 +132,7 @@ class OpticalCandlingDataset(Dataset):
             label = torch.FloatTensor(self.data.iloc[index, 1:].values.astype(
                 np.int64))
 
-        return image, label, time() - start_time
+        return image, label, time() - start_time, filename
 
     def __len__(self):
         return len(self.data)

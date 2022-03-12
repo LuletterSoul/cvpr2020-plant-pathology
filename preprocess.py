@@ -5,8 +5,8 @@ import csv
 import random
 
 input_dir = '/data/lxd/datasets/2022-03-02-Eggs'
-output_dir = '/data/lxd/datasets/2022-03-02-Eggs'
-
+output_dir = '/data/lxd/datasets/2022-03-11-Eggs'
+os.makedirs(output_dir, exist_ok=True)
 label_map = {
     'OK': 0,
     'AirRoomShake': 1,
@@ -28,7 +28,7 @@ def write_csv(csv_instance, class_dir, image_ids):
         one_hot[label_map[class_dir]] = 1
         row_item = [image_id] + one_hot
         csv_instance.writerow(row_item)
-        print(f'Processing {image_id}')
+        # print(f'Processing {image_id}')
 
 
 with open(os.path.join(output_dir, 'train_4_3.csv'), 'w',
@@ -49,3 +49,4 @@ with open(os.path.join(output_dir, 'train_4_3.csv'), 'w',
                 test_image_ids = image_ids[len(image_ids) // 4 * 3:]
                 write_csv(train_writer, class_dir, train_image_ids)
                 write_csv(test_writer, class_dir, test_image_ids)
+                print(f'{class_dir} - {len(test_image_ids)}')

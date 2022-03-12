@@ -76,6 +76,69 @@ def render_label(image, label, pred):
     # cv2.waitKey(1)
     return image
 
+def img_denorm(image, mean, std): 
+    #for ImageNet the mean and std are:
+    #mean = np.asarray([ 0.485, 0.456, 0.406 ])
+    #std = np.asarray([ 0.229, 0.224, 0.225 ])
+    std = torch.tensor(std).reshape(1, -1, 1, 1)
+    mean = torch.tensor(mean).reshape(-1, 1, 1)
+    # mean = -1 * mean / std
+    # std = 1.0 / std
+    image = image * std + mean
+    return torch.clamp(image, 0, 1)
+ 
+
+def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True, fp_indexes= None):
+    """render the convolutional activation in the images.
+
+    Args:
+        batch_id (_type_): batch idx
+        cam_extractors (_type_): the each feature map extractor
+        images (_type_): [b, 3, h, w]
+        pred (_type_): [b, num_classes]
+        label (_type_): [b, num_classes]
+        output_dir (_type_): output directory
+        path (_type_): the path of images 
+    """
+    batch_output_dir = os.path.join(output_dir, 'batch')
+    os.makedirs(batch_output_dir, exist_ok=True)
+    b, _, h, w = images.size()
+    n = len(cam_extractors)
+    activation_maps = torch.cat([extract_activation_map(cam, images, preds) for cam in cam_extractors]
+                                , dim=1)
+    heat_maps = generate_heatmaps(activation_maps, 'jet')
+    # print(heat_maps.size())
+    images = img_denorm(images, 
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]) 
+    images = images.unsqueeze(1)
+    mask_images = overlay(images, heat_maps)
+    images = render_labels(images, labels, preds)
+    results = torch.cat([images, mask_images], dim=1)
+    # if fn_indexes is None:
+    results = results.reshape(b * (n+1), 3, h, w)
+    if save_batch:
+        save_image(results, os.path.join(batch_output_dir, f'{batch_id}.jpeg'), nrow=n+1)
+    # save false negative by class.
+    if fp_indexes is not None:
+        fp_output_dir = os.path.join(output_dir, 'fn')
+        os.makedirs(fp_output_dir, exist_ok=True)
+        # selected the false positive
+        labels = torch.argmax(labels, dim=1).detach().cpu().numpy() # [b, 1] transfer one-hot into class index
+        fp_results = results.reshape(b , n+1, 3, h, w)[fp_indexes]
+        if not len(fp_results):
+            print(f'Batch id {batch_id}: Not found false negative samples in batch.')
+            return
+        fn_filenames = np.array(filenames)[fp_indexes]
+        fp_labels = labels[fp_indexes]
+        for label, result, filename in zip(fp_labels, fp_results, fn_filenames):
+            class_dir = os.path.join(fp_output_dir, class_label_to_name[label])
+            if not os.path.exists(class_dir):
+                os.makedirs(class_dir, exist_ok=True)
+            filename = os.path.splitext(filename)[0].replace('/', '_')
+            save_image(result, os.path.join(class_dir, f'{filename}.jpeg'), nrow =n+1)
+        
+
 def render_labels(images, labels, preds):
     """
 
@@ -102,8 +165,7 @@ def render_labels(images, labels, preds):
         # [b, 1, 3, h, w]
     return torch.stack(new_images).unsqueeze(1)
 
-
-if __name__ == '__main__':
+def test_render_labels():
     images = Image.open('/data/lxd/datasets/2022-03-02-Eggs/OK/000445139_Egg6_(ok)_L_0_cam5.bmp')
     images = to_tensor(images).reshape(1, 3, 700, 600)
     images = render_labels(images, torch.tensor([[1, 0, 0, 0, 0, 0, 0, 0]]), torch.tensor([[1, 0, 0, 0, 0, 0, 0, 0]]))
@@ -111,5 +173,9 @@ if __name__ == '__main__':
     
 
         
+
+if __name__ == '__main__':
+    pass
+
         
         

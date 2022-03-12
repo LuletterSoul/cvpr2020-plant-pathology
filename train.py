@@ -54,7 +54,7 @@ class CoolSystem(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         step_start_time = time()
-        images, labels, data_load_time = batch
+        images, labels, data_load_time, _ = batch
 
         scores = self(images)
         loss = self.criterion(scores, labels)

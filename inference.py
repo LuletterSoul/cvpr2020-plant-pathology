@@ -4,28 +4,21 @@
 # @Last Modified time: 2020-07-07 14:48:03
 # Standard libraries
 import os
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import EarlyStopping
 
 # Third party libraries
 import torch
 from scipy.special import softmax
 from torch.utils.data import DataLoader
-from torchcam.methods.activation import CAM
 from torchvision.utils import save_image
 from tqdm import tqdm
 
 # User defined libraries
-from dataset import OpticalCandlingDataset, generate_transforms, PlantDataset, img_denorm
+from dataset import OpticalCandlingDataset, generate_transforms
 from train import CoolSystem
-from utils import init_hparams, init_logger, load_test_data, seed_reproducer, load_data
-from torchvision.transforms.functional import normalize, resize, to_pil_image
+from utils import init_hparams, init_logger, load_test_data, seed_reproducer 
+# from torchvision.transforms.functional import normalize, resize, to_pil_image
 from torchcam.methods import SmoothGradCAMpp
-from torchcam.utils import overlay_mask
 import matplotlib.pyplot as plt
-from PIL import Image
-from matplotlib import cm
-import numpy as np
 from utils import *
 import time
 
@@ -105,25 +98,21 @@ if __name__ == "__main__":
             test_preds = []
             labels = []
             # with torch.no_grad():
-            for batch_id, (images, label, times) in enumerate(tqdm(test_dataloader)):
+            for batch_id, (images, label, times, filenames) in enumerate(tqdm(test_dataloader)):
                 h, w = images.size()[-2:]
-                preds = model(images.to("cuda")).detach()
-                test_preds.append(preds)
+                label = label.cuda()
+                pred = model(images.cuda()).detach()
+                test_preds.append(pred)
                 labels.append(label)
-                # the crossponding activation feature maps [b, n, h, w]
-                activation_maps = torch.cat([extract_activation_map(cam, images, preds) for cam in cam_extractors]
-                                            , dim=1)
-                heat_maps = generate_heatmaps(activation_maps, 'jet')
-                # print(heat_maps.size())
-                images = img_denorm(images, 
-                                mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]) 
-                images = images.unsqueeze(1)
-                mask_images = overlay(images, heat_maps)
-                images = render_labels(images, label, preds)
-                results = torch.cat([images, mask_images], dim=1)
-                results = results.reshape(b * (n+1), 3, h, w)
-                save_image(results, os.path.join(output_dir, f'{batch_id}.jpeg'), nrow=n+1)
+                
+                label_class = torch.argmax(label, dim=1)
+                pred_class = torch.argmax(pred, dim =1)
+
+                # select the false positive indexes
+                fn_indexes = torch.ne(pred_class, label_class) & torch.eq(pred_class, 0)
+                fn_indexes = fn_indexes.detach().cpu().numpy()
+                visualization(batch_id, cam_extractors, images, pred, label, filenames,output_dir, save_batch=False, fp_indexes=fn_indexes) 
+
             labels = torch.cat(labels)
             test_preds = torch.cat(test_preds)
             # [8, N, num_classes]

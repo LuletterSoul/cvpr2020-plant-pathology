@@ -78,7 +78,7 @@ if __name__ == "__main__":
             test_preds = []
             labels = []
             with torch.no_grad():
-                for image, label, times in tqdm(test_dataloader):
+                for image, label, times, _ in tqdm(test_dataloader):
                     test_preds.append(model(image.to("cuda")))
                     labels.append(label)
 

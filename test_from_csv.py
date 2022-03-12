@@ -102,6 +102,7 @@ if __name__ == "__main__":
         pred_labels = pred_data.iloc[:, 1:-1].to_numpy()
 
 
+        # N * 2
         thresh_pred_labels = np.concatenate([pred_labels[:, [0]],pred_labels[:, 1:].sum(axis=1, keepdims=True)], axis = 1)
 
         # Convert one-hot to class label.
@@ -122,7 +123,9 @@ if __name__ == "__main__":
 
 
         for th in thresh:
-            th_pred_labels = np.argmax((thresh_pred_labels > th).astype(int), axis=1)
+            # N
+            # th_pred_labels = np.argmax((thresh_pred_labels > th).astype(int), axis=1)
+            th_pred_labels = (~(thresh_pred_labels[:, 0] > th)).astype(int)
             # th_pred_labels[th_pred_labels!=0] = 1
             th_output_dir = os.path.join(output_dir, 'th')
             os.makedirs(th_output_dir, exist_ok=True)
