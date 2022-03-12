@@ -29,7 +29,7 @@ from albumentations import (
 from torch.utils.data import DataLoader, Dataset
 
 # User defined libraries
-from utils import IMAGE_FOLDER, IMG_SHAPE
+from utils import *
 
 # for fast read data
 # from utils import NPY_FOLDER
@@ -137,6 +137,13 @@ class OpticalCandlingDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
+class AnchorSet(OpticalCandlingDataset):
+    def __init__(self, data_folder, data, soft_labels_filename=None, transforms=None, sample_num = 10):
+        super().__init__(data_folder, data, soft_labels_filename, transforms)
+        # filename = self.data.iloc[index,0]
+        self.data = pd.concat([self.data.loc[
+                               self.data['filename'].str.startswith(class_name)].head(sample_num) 
+                              for class_name in class_names])
 
 def generate_transforms(image_size):
 
@@ -226,5 +233,32 @@ def generate_test_dataloaders(hparams, test_data, transforms):
         pin_memory=True,
         drop_last=False,
     )
-
     return test_dataloader
+
+def generate_anchor_dataloaders(hparams, test_data, transforms):
+    test_dataset = AnchorSet(
+        data_folder=hparams.data_folder,
+        data=test_data,
+        transforms=transforms["val_transforms"],
+        sample_num=hparams.sample_num,
+        soft_labels_filename=hparams.soft_labels_filename)
+    anchor_dataloader = DataLoader(
+        test_dataset,
+        batch_size=hparams.val_batch_size,
+        shuffle=False,
+        num_workers=hparams.num_workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+    return anchor_dataloader
+
+
+if __name__ == '__main__':
+    hparams = init_hparams()
+    # Make experiment reproducible
+    seed_reproducer(hparams.seed) 
+    header_names = ['filename'] + class_names 
+    test_data, _= load_test_data_with_header(None, hparams.data_folder, header_names=header_names)
+    transforms = generate_transforms(hparams.image_size)
+    anchor_dataloader = generate_anchor_dataloaders(hparams, test_data, transforms)
+    

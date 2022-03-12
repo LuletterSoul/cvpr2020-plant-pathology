@@ -18,7 +18,6 @@ import pandas as pd
 import torch
 
 IMG_SHAPE = (700, 600, 3)
-# IMAGE_FOLDER = "/home/public_data_center/kaggle/plant_pathology_2020/images"
 IMAGE_FOLDER = "data/images"
 NPY_FOLDER = "/home/public_data_center/kaggle/plant_pathology_2020/npys"
 LOG_FOLDER = "logs"
@@ -93,6 +92,7 @@ def init_hparams():
     parser.add_argument("--gradient_clip_val", type=float, default=0)
     parser.add_argument("--soft_labels_filename", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="logs_submit")
+    parser.add_argument("--sample_num", type=int, default=10)
     try:
         hparams = parser.parse_args()
     except:

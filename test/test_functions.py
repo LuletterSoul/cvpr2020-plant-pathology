@@ -14,7 +14,6 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 
 from torchvision.transforms.functional import to_tensor
-from PIL import Image
 from utils import *
 
 def test_generate_activation_maps():

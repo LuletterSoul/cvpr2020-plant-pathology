@@ -100,8 +100,8 @@ def visualization(batch_id, cam_extractors, images, preds, labels, filenames, ou
         output_dir (_type_): output directory
         path (_type_): the path of images 
     """
-    batch_output_dir = os.path.join(output_dir, 'batch')
-    os.makedirs(batch_output_dir, exist_ok=True)
+    # output_dir = os.path.join(output_dir, 'batch')
+    os.makedirs(output_dir, exist_ok=True)
     b, _, h, w = images.size()
     n = len(cam_extractors)
     activation_maps = torch.cat([extract_activation_map(cam, images, preds) for cam in cam_extractors]
@@ -115,12 +115,12 @@ def visualization(batch_id, cam_extractors, images, preds, labels, filenames, ou
     mask_images = overlay(images, heat_maps)
     images = render_labels(images, labels, preds)
     results = torch.cat([images, mask_images], dim=1)
-    # if fn_indexes is None:
-    results = results.reshape(b * (n+1), 3, h, w)
     if save_batch:
-        save_image(results, os.path.join(batch_output_dir, f'{batch_id}.jpeg'), nrow=n+1)
+        save_image(results, os.path.join(output_dir, f'{batch_id}.jpeg'), nrow=n+1)
     # save false negative by class.
     if fp_indexes is not None:
+        # if fn_indexes is None:
+        results = results.reshape(b * (n+1), 3, h, w)
         fp_output_dir = os.path.join(output_dir, 'fn')
         os.makedirs(fp_output_dir, exist_ok=True)
         # selected the false positive
@@ -164,6 +164,13 @@ def render_labels(images, labels, preds):
         new_images.append(to_tensor(image))
         # [b, 1, 3, h, w]
     return torch.stack(new_images).unsqueeze(1)
+
+def select_fn_indexes(pred, label):
+    label_class = torch.argmax(label, dim=1)
+    pred_class = torch.argmax(pred, dim =1)
+    fn_indexes = torch.ne(pred_class, label_class) & torch.eq(pred_class, 0)
+    fn_indexes = fn_indexes.detach().cpu().numpy()
+    return fn_indexes
 
 def test_render_labels():
     images = Image.open('/data/lxd/datasets/2022-03-02-Eggs/OK/000445139_Egg6_(ok)_L_0_cam5.bmp')

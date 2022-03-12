@@ -105,12 +105,10 @@ if __name__ == "__main__":
                 test_preds.append(pred)
                 labels.append(label)
                 
-                label_class = torch.argmax(label, dim=1)
-                pred_class = torch.argmax(pred, dim =1)
 
                 # select the false positive indexes
-                fn_indexes = torch.ne(pred_class, label_class) & torch.eq(pred_class, 0)
-                fn_indexes = fn_indexes.detach().cpu().numpy()
+                fn_indexes = select_fn_indexes(pred, label)
+
                 visualization(batch_id, cam_extractors, images, pred, label, filenames,output_dir, save_batch=False, fp_indexes=fn_indexes) 
 
             labels = torch.cat(labels)
