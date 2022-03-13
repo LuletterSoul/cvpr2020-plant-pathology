@@ -1,4 +1,4 @@
-# @Author: yican, yelanlan
+# Author: yican, yelanlan
 # @Date: 2020-07-07 14:48:03
 # @Last Modified by:   yican
 # @Last Modified time: 2020-07-07 14:48:03

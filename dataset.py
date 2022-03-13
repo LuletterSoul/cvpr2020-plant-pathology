@@ -92,6 +92,7 @@ class OpticalCandlingDataset(Dataset):
                  soft_labels_filename=None,
                  transforms=None):
         self.data_folder = data_folder
+        # self.data = data[-50:]
         self.data = data
         self.transforms = transforms
         if soft_labels_filename == "":
@@ -109,7 +110,7 @@ class OpticalCandlingDataset(Dataset):
         path = os.path.join(self.data_folder, filename)
         image = cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
         # solution-2: read from npy file which can speed the data load time.
-        # image = np.load(os.path.join(NPY_FOLDER, "raw", self.data.iloc[index, 0] + ".npy"))
+        # image = np.load(os.path.join(NPY_FO21LDER, "raw", self.data.iloc[index, 0] + ".npy"))
 
         if image is None:
             raise Exception('')
@@ -244,7 +245,7 @@ def generate_anchor_dataloaders(hparams, test_data, transforms):
         soft_labels_filename=hparams.soft_labels_filename)
     anchor_dataloader = DataLoader(
         test_dataset,
-        batch_size=hparams.val_batch_size,
+        batch_size=hparams.sample_num,
         shuffle=False,
         num_workers=hparams.num_workers,
         pin_memory=True,

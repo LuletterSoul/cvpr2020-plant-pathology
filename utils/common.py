@@ -1,3 +1,4 @@
+from sklearn.metrics import roc_auc_score
 import torch
 import sys
 import os
@@ -10,7 +11,7 @@ from torchvision.transforms.functional import to_tensor
 from PIL import Image
 from torchvision.utils import save_image
 import os
-
+from torchcam.methods import SmoothGradCAMpp
 class_names = ['OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak', 'Flower']
 
 bn_class_names = ['OK', 'NoOK']
@@ -20,7 +21,7 @@ header_names = ['filename'] + class_names
 class_label_to_name = {0: 'ok', 1: 'qishihuangdong', 2 : 'sipei', 3: 'kongliao', 4: 'wuqishi', 5: 'liewen', 6: 'ruopei', 7: 'huake'}
 name_to_class_label = {'ok': 0 , 'qishihuangdong' : 1, 'sipei' : 1, 'kongliao' : 1, 'wuqishi' : 1, 'liewen' : 1, 'ruopei' : 1}
 
-def extract_activation_map(cam_extractor, images, preds):
+def extract_activation_map(cam_extractor: SmoothGradCAMpp, images, preds):
     activation_map = cam_extractor(preds.argmax(dim=1).tolist(), preds)[0]
     activation_map = torch.nn.functional.interpolate(activation_map.unsqueeze(1), 
                                                      size = images.size()[2:], 
@@ -80,15 +81,15 @@ def img_denorm(image, mean, std):
     #for ImageNet the mean and std are:
     #mean = np.asarray([ 0.485, 0.456, 0.406 ])
     #std = np.asarray([ 0.229, 0.224, 0.225 ])
-    std = torch.tensor(std).reshape(1, -1, 1, 1)
-    mean = torch.tensor(mean).reshape(-1, 1, 1)
+    std = torch.tensor(std, device=image.device).reshape(1, -1, 1, 1)
+    mean = torch.tensor(mean, device=image.device).reshape(-1, 1, 1)
     # mean = -1 * mean / std
     # std = 1.0 / std
     image = image * std + mean
     return torch.clamp(image, 0, 1)
  
 
-def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True, fp_indexes= None):
+def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True, fp_indexes= None, norm=True):
     """render the convolutional activation in the images.
 
     Args:
@@ -108,24 +109,25 @@ def visualization(batch_id, cam_extractors, images, preds, labels, filenames, ou
                                 , dim=1)
     heat_maps = generate_heatmaps(activation_maps, 'jet')
     # print(heat_maps.size())
+
     images = img_denorm(images, 
                     mean=[0.485, 0.456, 0.406],
                     std=[0.229, 0.224, 0.225]) 
     images = images.unsqueeze(1)
     mask_images = overlay(images, heat_maps)
     images = render_labels(images, labels, preds)
-    results = torch.cat([images, mask_images], dim=1)
+    results = torch.cat([images, mask_images], dim=1).reshape(b*(n+1), 3, h, w)
     if save_batch:
         save_image(results, os.path.join(output_dir, f'{batch_id}.jpeg'), nrow=n+1)
     # save false negative by class.
     if fp_indexes is not None:
         # if fn_indexes is None:
         results = results.reshape(b * (n+1), 3, h, w)
-        fp_output_dir = os.path.join(output_dir, 'fn')
+        fp_output_dir = os.path.join(output_dir, 'fp')
         os.makedirs(fp_output_dir, exist_ok=True)
         # selected the false positive
         labels = torch.argmax(labels, dim=1).detach().cpu().numpy() # [b, 1] transfer one-hot into class index
-        fp_results = results.reshape(b , n+1, 3, h, w)[fp_indexes]
+        fp_results = results[fp_indexes]
         if not len(fp_results):
             print(f'Batch id {batch_id}: Not found false negative samples in batch.')
             return
@@ -163,7 +165,7 @@ def render_labels(images, labels, preds):
         image = render_label(image, label, pred)
         new_images.append(to_tensor(image))
         # [b, 1, 3, h, w]
-    return torch.stack(new_images).unsqueeze(1)
+    return torch.stack(new_images).unsqueeze(1).to(images.device)
 
 def select_fn_indexes(pred, label):
     label_class = torch.argmax(label, dim=1)
@@ -171,6 +173,21 @@ def select_fn_indexes(pred, label):
     fn_indexes = torch.ne(pred_class, label_class) & torch.eq(pred_class, 0)
     fn_indexes = fn_indexes.detach().cpu().numpy()
     return fn_indexes
+
+
+def get_roc_auc(labels, scores):
+    class_num = labels.argmax(dim=1).unique() 
+    print(class_num)
+    val_roc_auc = 0
+    try:
+        if len(class_num) == 1:
+            val_roc_auc = 0
+        else:
+            # print(labels)
+            val_roc_auc = roc_auc_score(labels.cpu().numpy(), scores.cpu().numpy())
+    except Exception as e:
+        print('Unexpected auc scores error')
+    return val_roc_auc
 
 def test_render_labels():
     images = Image.open('/data/lxd/datasets/2022-03-02-Eggs/OK/000445139_Egg6_(ok)_L_0_cam5.bmp')

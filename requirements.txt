@@ -1,16 +1,16 @@
-numpy==1.18.1
-opencv-python==4.2.0.32
-pandas==1.1.5
-pre-commit==2.5.1
-scipy==1.4.1
-scikit-learn>=0.22.1
-torch==1.10.1
-torchvision==0.11.2
-tqdm==4.42.1
-albumentations==0.4.5
-pretrainedmodels==0.7.4
-pytorch-lightning==0.7.3
+numpy
+opencv-python
+pandas
+scipy
+scikit-learn
+tqdm
+albumentations
+pretrainedmodels
+pytorch-lightning
 matplotlib
+# pre-commit
+# torch==1.10.1
+# torchvision==0.11.2
 
 
 # eventlet==0.24.1

@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import torch
+from dotmap import DotMap
 
 IMG_SHAPE = (700, 600, 3)
 IMAGE_FOLDER = "data/images"
@@ -87,12 +88,12 @@ def init_hparams():
     parser.add_argument("--seed", type=int, default=2022)
     parser.add_argument("--min_epochs", type=int, default=70)
     parser.add_argument("--max_epochs", type=int, default=70)
-    parser.add_argument("--gpus", nargs="+", default=[0, 1])  # 输入1 2 3
+    parser.add_argument("--gpus", nargs="+", default=[2, 3])  # 输入1 2 3
     parser.add_argument("--precision", type=int, default=16)
     parser.add_argument("--gradient_clip_val", type=float, default=0)
     parser.add_argument("--soft_labels_filename", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="logs_submit")
-    parser.add_argument("--sample_num", type=int, default=10)
+    parser.add_argument("--sample_num", type=int, default=6)
     try:
         hparams = parser.parse_args()
     except:
@@ -103,7 +104,7 @@ def init_hparams():
         hparams.gpus = [int(gpu) for gpu in hparams.gpus]
 
     hparams.image_size = [int(size) for size in hparams.image_size]
-    return hparams
+    return DotMap(vars(hparams), _dynamic=False)
 
 
 def load_data(logger, frac=1):
