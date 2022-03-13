@@ -385,18 +385,18 @@ if __name__ == "__main__":
             # use_dp=True,
             gradient_clip_val=hparams.gradient_clip_val
         )
-        # trainer.test(test_dataloaders=anchor_dataloader)
-        # trainer.fit(model, train_dataloader, val_dataloader)
         trainer.fit(model, datamodule=da)
-        # trainer.fast_dev_run = False
-        # checkpoint_callback.save_checkpoint(trainer=trainer)
-        trainer.test(test_dataloaders=[anchor_dataloader])
-        # valid_roc_auc_scores.append(round(checkpoint_callback.best, 4))
-        # logger.info(valid_roc_auc_scores)
+        try:
+            trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[anchor_dataloader])
+            valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
+        except Exception as e:
+            print('Proccessing wrong in testing.')
 
         del trainer
         del model
         del train_dataloader
         del val_dataloader
-        gc.collect()
         torch.cuda.empty_cache()
+        gc.collect()
+    logger.info(valid_roc_auc_scores)
+
