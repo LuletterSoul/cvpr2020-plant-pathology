@@ -117,12 +117,13 @@ def visualization(batch_id, cam_extractors, images, preds, labels, filenames, ou
     mask_images = overlay(images, heat_maps)
     images = render_labels(images, labels, preds)
     results = torch.cat([images, mask_images], dim=1).reshape(b*(n+1), 3, h, w)
+    # print(results.size())
     if save_batch:
         save_image(results, os.path.join(output_dir, f'{batch_id}.jpeg'), nrow=n+1)
     # save false negative by class.
     if fp_indexes is not None:
         # if fn_indexes is None:
-        results = results.reshape(b * (n+1), 3, h, w)
+        results = results.reshape(b , n+1, 3, h, w)
         fp_output_dir = os.path.join(output_dir, 'fp')
         os.makedirs(fp_output_dir, exist_ok=True)
         # selected the false positive

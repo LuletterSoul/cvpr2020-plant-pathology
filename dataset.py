@@ -43,7 +43,6 @@ class PlantDataset(Dataset):
         self.data = data
         self.transforms = transforms
         if soft_labels_filename == "":
-            print("soft_labels is None")
             self.soft_labels = None
         else:
             self.soft_labels = pd.read_csv(soft_labels_filename)
@@ -96,7 +95,6 @@ class OpticalCandlingDataset(Dataset):
         self.data = data
         self.transforms = transforms
         if soft_labels_filename == "":
-            print("soft_labels is None")
             self.soft_labels = None
         else:
             self.soft_labels = pd.read_csv(soft_labels_filename)

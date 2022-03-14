@@ -367,7 +367,7 @@ if __name__ == "__main__":
         # Instance Model, Trainer and train model
         model = CoolSystem(hparams)
         trainer = pl.Trainer(
-            # fast_dev_run=True,
+            fast_dev_run=True,
             strategy=DDPPlugin(find_unused_parameters=False),
             gpus=hparams.gpus,
             num_nodes=1,
