@@ -131,8 +131,8 @@ if __name__ == "__main__":
                 test_preds = torch.cat(test_preds)
                 # [8, N, num_classes]
                 submission.append(test_preds.detach().cpu().numpy())
-            del cam_extractors
-            del model
+            # del cam_extractors
+            # del model
 
         submission_ensembled = 0
         for sub in submission:
