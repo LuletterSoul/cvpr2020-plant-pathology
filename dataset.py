@@ -91,7 +91,7 @@ class OpticalCandlingDataset(Dataset):
                  soft_labels_filename=None,
                  transforms=None):
         self.data_folder = data_folder
-        # self.data = data[-50:]
+        # self.data = data[-8:]
         self.data = data
         self.transforms = transforms
         if soft_labels_filename == "":

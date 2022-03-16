@@ -6,9 +6,10 @@ import random
 import cv2
 import pandas as pd
 
-from utils.logs import load_test_data, load_training_data
+from utils import *
 input_dir = '/data/lxd/datasets/2022-03-02-Eggs'
 output_dir = '/data/lxd/datasets/2022-03-02-Eggs'
+# output_dir = '/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-PN0.0'
 os.makedirs(output_dir, exist_ok=True)
 label_map = {
     'OK': 0,
@@ -92,7 +93,51 @@ def validate():
     print(error_train_filenames)
     print(error_test_filenames)
             
+def random_positive_negative(input_dir, output_dir):
+    pos_ratio = 0.92
+    neg_ratio = 0.08
+    os.makedirs(output_dir, exist_ok=True)
+    # test_data, _ = load_test_data_with_header(None, input_dir, header_names=header_names)
+    test_data = pd.read_csv(os.path.join(input_dir, 'test_4_1.csv'))
+    pos :pd.DataFrame = test_data.loc[test_data['filename'].str.startswith('OK')]
+    # neg :pd.DataFrame = test_data.loc[test_data['filename'].str.startswith('OK') == False]
+
+    print(pos.shape)
+    # print(neg.shape)
+
+    pos_num = pos.shape[0]
+    neg_num = int(pos_num / pos_ratio * neg_ratio)
+    print(f'Sampling positive number {pos_num}, negative number {neg_num}')
+    # sample_pos = pos.sample(n=pos_num)
+    sample_pos = pos # we take all the positive samples which are occupying a dominant number in test set.
+    # sample_neg = neg.sample(n=neg_num)
+
+    num_avg_per_neg_class = neg_num // len(header_names[2:])
+    # generate 10 groups of test sets.
+    seeds = np.arange(start=2013, stop=2023)
+    for idx, seed in enumerate(seeds):
+        sample_neg = []
+        print(f'Using seed {seed}')
+        seed_reproducer(seed)
+        for neg_class_name in header_names[2:]:
+            sample_neg_per = test_data.loc[test_data['filename'].str.startswith(neg_class_name)].sample(n=num_avg_per_neg_class)
+            sample_neg.append(sample_neg_per)
+        # print(sample_neg[0])
+        sample_neg = pd.concat(sample_neg)
+        df = pd.concat([sample_pos, sample_neg])
+        output_path = os.path.join(output_dir, f'seed_by_{seed}.csv')
+        df.to_csv(output_path, index=False)
+        print(f'Processed {seed}, {output_path}')
+        
+        # print(sample_neg.shape)
+        
+
+    
+    # self.data.loc[
+                            #    self.data['filename'].str.startswith(class_name)]
+    # pos = test_data[test_data.str.startwiths('OK')]
     
 if __name__ == '__main__':
-    # split()
-    validate()
+
+    random_positive_negative(input_dir='/data/lxd/datasets/2022-03-02-Eggs', 
+                             output_dir='/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-P_[0.92]_N_[0.08]')

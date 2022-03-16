@@ -324,9 +324,11 @@ if __name__ == "__main__":
     logger = init_logger("kun_out", log_dir=hparams.log_dir)
 
     # Load data
-    data, _ = load_training_data(logger, hparams.data_folder)
+    # data, _ = load_training_data(logger, hparams.data_folder)
+    data = pd.read_csv(hparams.data_folder, 'train_4_3.csv')
     header_names = ['filename'] + class_names 
-    test_data, _ = load_test_data_with_header(logger, hparams.data_folder, header_names=header_names)
+    # test_data, _ = load_test_data_with_header(logger, hparams.data_folder, header_names=header_names)
+    test_data = pd.read_csv(hparams.data_folder, 'test_4_1.csv')
 
     # train_data = test_data.iloc[train_index, :].reset_index(drop=True)
     # Generate transforms
@@ -367,7 +369,7 @@ if __name__ == "__main__":
         # Instance Model, Trainer and train model
         model = CoolSystem(hparams)
         trainer = pl.Trainer(
-            fast_dev_run=True,
+            # fast_dev_run=True,
             strategy=DDPPlugin(find_unused_parameters=False),
             gpus=hparams.gpus,
             num_nodes=1,
