@@ -24,7 +24,6 @@ name_to_class_label = {'ok': 0 , 'qishihuangdong' : 1, 'sipei' : 1, 'kongliao' :
 def extract_activation_map(cam_extractor: SmoothGradCAMpp, images, preds):
     activation_map = cam_extractor(preds.argmax(dim=1).tolist(), preds)[0]
     # print(len(activation_map))
-    activation_map = activation_map[0]
     activation_map = torch.nn.functional.interpolate(activation_map.unsqueeze(1), 
                                                      size = images.size()[2:], 
                                                      mode ='bicubic',
