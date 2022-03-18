@@ -240,6 +240,8 @@ class CoolSystem(pl.LightningModule):
         # compute loss
         # only process the main validation set.
         val_epoch_out_path = os.path.join(self.vis_val_output, str(self.current_epoch))
+        cat_epoch_out_path = os.path.join(self.cat_val_output, str(self.current_epoch))
+        os.makedirs(cat_epoch_out_path, exist_ok=True)
         filenames = os.listdir(val_epoch_out_path)
         filenames = sorted(filenames)
         for class_name in class_names:
@@ -252,7 +254,7 @@ class CoolSystem(pl.LightningModule):
                     imgs.append(img)
             if len(imgs): 
                 imgs = cv2.vconcat(imgs)
-                cv2.imwrite(os.path.join(self.cat_val_output, f'{class_name}.jpeg'), imgs)
+                cv2.imwrite(os.path.join(cat_epoch_out_path, f'{class_name}.jpeg'), imgs)
             
             
         outputs = outputs[0]
