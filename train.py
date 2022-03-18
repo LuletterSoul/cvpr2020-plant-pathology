@@ -5,6 +5,7 @@
 # Standard libraries
 import os
 import gc
+from pydoc import classname
 from time import time
 import numpy as np
 import time as ts
@@ -14,7 +15,7 @@ from torchvision.transforms.functional import to_tensor
 # Third party libraries
 import torch
 from torchcam.methods.gradient import SmoothGradCAMpp
-from dataset import generate_anchor_dataloaders, generate_transforms, generate_dataloaders
+from dataset import generate_anchor_dataloaders, generate_test_dataloaders, generate_transforms, generate_dataloaders
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold
 
@@ -73,6 +74,12 @@ class CoolSystem(pl.LightningModule):
         self.vis_val_output = os.path.join(self.val_output_dir, 'vis')
         os.makedirs(self.vis_val_output, exist_ok=True)
         os.makedirs(self.vis_test_output, exist_ok=True)
+
+
+        self.cat_test_output = os.path.join(self.test_output, 'cat')
+        self.cat_val_output = os.path.join(self.val_output_dir, 'cat')
+        os.makedirs(self.cat_val_output, exist_ok=True)
+        os.makedirs(self.cat_test_output, exist_ok=True)
         self.cam_extractors = [SmoothGradCAMpp(self, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
         self.global_epoch = 0
 
@@ -190,10 +197,8 @@ class CoolSystem(pl.LightningModule):
         step_start_time = time()
         if dataloader_idx == 1:
             with torch.enable_grad():
-                self.eval()
-                self.zero_grad()
                 images, labels, data_load_time, filenames = batch
-                self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+                # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
                 data_load_time = torch.sum(data_load_time)
                 scores = self(images)
                 visualization(batch_idx, 
@@ -207,7 +212,7 @@ class CoolSystem(pl.LightningModule):
                 loss = self.criterion(scores, labels)
         elif dataloader_idx == 0:
             images, labels, data_load_time, filenames = batch
-            self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+            # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
             data_load_time = torch.sum(data_load_time)
             scores = self(images)
             loss = self.criterion(scores, labels)
@@ -231,6 +236,19 @@ class CoolSystem(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         # compute loss
         # only process the main validation set.
+        val_epoch_out_path = os.path.join(self.vis_val_output, str(self.current_epoch))
+        filenames = os.listdir(val_epoch_out_path)
+        filenames = sorted(filenames)
+        for class_name in class_names:
+            imgs = []
+            for filename in filenames:
+                if filename.startswith(class_name):
+                    img = cv2.imread(os.path.join(val_epoch_out_path, filename)) 
+                    imgs.append(img)
+            imgs = cv2.vconcat(imgs)
+            cv2.imwrite(os.path.join(self.cat_val_output, f'{classname}.jpeg'), imgs)
+            
+            
         outputs = outputs[0]
         val_loss_mean = torch.stack([output["val_loss"]
                                      for output in outputs]).mean()
@@ -351,6 +369,8 @@ if __name__ == "__main__":
     # Generate transforms
     transforms = generate_transforms(hparams.image_size)
 
+    test_dataloader = generate_test_dataloaders(hparams, test_data, transforms)
+
     anchor_dataloader = generate_anchor_dataloaders(hparams, test_data, transforms)
 
 
@@ -387,7 +407,7 @@ if __name__ == "__main__":
         # Instance Model, Trainer and train model
         model = CoolSystem(hparams)
         trainer = pl.Trainer(
-            fast_dev_run=True,
+            fast_dev_run=hparams.debug,
             strategy=get_training_strategy(hparams),
             gpus=hparams.gpus,
             num_nodes=1,
@@ -406,15 +426,16 @@ if __name__ == "__main__":
             gradient_clip_val=hparams.gradient_clip_val
         )
         trainer.fit(model, datamodule=da)
-        # try:
-        #     trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[anchor_dataloader])
-        #     valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
-        # except Exception as e:
-        #     print('Proccessing wrong in testing.')
+        try:
+              trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[test_dataloader])
+              valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
+        except Exception as e:
+            print('Proccessing wrong in testing.')
 
         del trainer
         del model
         del train_dataloader
+        del test_dataloader
         del val_dataloader
         torch.cuda.empty_cache()
         gc.collect()

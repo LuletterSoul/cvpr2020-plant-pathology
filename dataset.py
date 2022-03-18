@@ -226,7 +226,7 @@ def generate_test_dataloaders(hparams, test_data, transforms):
         soft_labels_filename=hparams.soft_labels_filename)
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=hparams.val_batch_size,
+        batch_size=hparams.sample_num,
         shuffle=False,
         num_workers=hparams.num_workers,
         pin_memory=True,

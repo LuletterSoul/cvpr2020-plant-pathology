@@ -90,7 +90,7 @@ def img_denorm(image, mean, std):
     return torch.clamp(image, 0, 1)
  
 
-def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True, fp_indexes= None, norm=True):
+def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True,save_image=False, fp_indexes= None, norm=True):
     """render the convolutional activation in the images.
 
     Args:
@@ -121,6 +121,11 @@ def visualization(batch_id, cam_extractors, images, preds, labels, filenames, ou
     # print(results.size())
     if save_batch:
         save_image(results, os.path.join(output_dir, f'{batch_id}.jpeg'), nrow=n+1)
+    if save_image:
+       for filename, image in zip(filenames, results):
+            prefix = os.path.splitext(filename)[0].replace('/', '_')
+            save_image(image, os.path.join(output_dir, f'{prefix}.jpeg'), nrow =n+1)
+
     # save false negative by class.
     if fp_indexes is not None:
         # if fn_indexes is None:

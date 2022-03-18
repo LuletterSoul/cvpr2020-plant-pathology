@@ -4,8 +4,8 @@ data_folder: /data/lxd/datasets/2022-03-17-Egg-Masks/
 training_set: train_4_3.csv
 test_set : test_4_1.csv
 num_classes: 8
-train_batch_size: 12
-val_batch_size: 64
+train_batch_size: 48
+val_batch_size: 96
 anchor_batch_size: 6
 training_mode: ddp
 num_workers: 8
@@ -19,3 +19,4 @@ gradient_clip_val: 0
 soft_labels_filename: ""
 log_dir: logs_submit
 sample_num: 6
+debug: False
