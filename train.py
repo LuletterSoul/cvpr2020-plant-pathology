@@ -145,7 +145,7 @@ class CoolSystem(pl.LightningModule):
             loss = self.criterion(scores, labels)
 
             visualization(batch_idx, self.cam_extractors, images, scores, labels, filenames, 
-                        os.path.join(self.vis_test_output, str(self.current_epoch)), save_batch=True)
+                        os.path.join(self.vis_test_output, str(self.current_epoch)), save_batch=True, mean=self.hparams.norm['mean'], std=self.hparams.norm['std'])
         # must return key -> val_loss
         return {
             "filenames": np.array(filenames),
@@ -209,7 +209,9 @@ class CoolSystem(pl.LightningModule):
                                 filenames, 
                                 os.path.join(self.vis_val_output, str(self.current_epoch)), 
                                 save_batch=False,
-                                save_per_image=True) 
+                                save_per_image=True,
+                                mean=self.hparams.norm['mean'],
+                                std=self.hparams.norm['std']) 
                 loss = self.criterion(scores, labels)
         elif dataloader_idx == 0:
             images, labels, data_load_time, filenames = batch
@@ -245,6 +247,8 @@ class CoolSystem(pl.LightningModule):
             for filename in filenames:
                 if filename.startswith(class_name):
                     img = cv2.imread(os.path.join(val_epoch_out_path, filename)) 
+                    if img is None:
+                        continue
                     imgs.append(img)
             if len(imgs): 
                 imgs = cv2.vconcat(imgs)
@@ -369,7 +373,7 @@ if __name__ == "__main__":
 
     # train_data = test_data.iloc[train_index, :].reset_index(drop=True)
     # Generate transforms
-    transforms = generate_transforms(hparams.image_size)
+    transforms = generate_transforms(hparams)
 
     test_dataloader = generate_test_dataloaders(hparams, test_data, transforms)
 

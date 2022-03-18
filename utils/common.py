@@ -90,7 +90,7 @@ def img_denorm(image, mean, std):
     return torch.clamp(image, 0, 1)
  
 
-def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True,save_per_image=False, fp_indexes= None, norm=True):
+def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True,save_per_image=False, fp_indexes= None, norm=True, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """render the convolutional activation in the images.
 
     Args:
@@ -112,8 +112,8 @@ def visualization(batch_id, cam_extractors, images, preds, labels, filenames, ou
     # print(heat_maps.size())
 
     images = img_denorm(images, 
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]) 
+                    mean=mean,
+                    std=std) 
     images = images.unsqueeze(1)
     mask_images = overlay(images, heat_maps)
     images = render_labels(images, labels, preds)

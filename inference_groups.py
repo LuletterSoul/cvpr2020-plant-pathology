@@ -62,7 +62,7 @@ if __name__ == "__main__":
         if hparams.debug:
             test_data = test_data.head(8)
         gt_data = test_data.copy()
-        transforms = generate_transforms(hparams.image_size)
+        transforms = generate_transforms(hparams)
 
         # Instance Model, Trainer and train model
         model = CoolSystem(hparams)

@@ -123,6 +123,7 @@ class OpticalCandlingDataset(Dataset):
 
         # Do data augmentation
         if self.transforms is not None and isinstance(self.transforms, albumentations.Compose) :
+            image = np.array(image)
             image = self.transforms(image=image)["image"].transpose(2, 0, 1)
         elif self.transforms is not None and isinstance(self.transforms,transforms.Compose):
             image = self.transforms(image)
@@ -150,10 +151,10 @@ class AnchorSet(OpticalCandlingDataset):
                                self.data['filename'].str.startswith(class_name)].head(sample_num) 
                               for class_name in class_names])
 
-def generate_transforms(image_size):
+def generate_transforms(hparams):
 
     train_transform = Compose([
-        Resize(height=image_size[0], width=image_size[1]),
+        Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
         OneOf(
             [RandomBrightness(limit=0.1, p=1),
              RandomContrast(limit=0.1, p=1)]),
@@ -173,22 +174,22 @@ def generate_transforms(image_size):
             border_mode=cv2.BORDER_REFLECT_101,
             p=1,
         ),
-        Normalize(mean=(0.485, 0.456, 0.406),
-                  std=(0.229, 0.224, 0.225),
+        Normalize(mean=hparams.norm['mean'],
+                  std=hparams.norm['std'],
                   max_pixel_value=255.0,
                   p=1.0),
     ])
 
     val_transform = Compose([
-        Resize(height=image_size[0], width=image_size[1]),
-        Normalize(mean=(0.485, 0.456, 0.406),
-                  std=(0.229, 0.224, 0.225),
+        Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
+        Normalize(mean=hparams.norm['mean'],
+                  std= hparams.norm['std'],
                   max_pixel_value=255.0,
                   p=1.0),
     ])
 
     tensor_transform = transforms.Compose([
-        transforms.Resize(size=image_size),
+        transforms.Resize(size=hparams.image_size),
         #    ShiftScaleRotate(
         #     shift_limit=0.2,
         #     scale_limit=0.2,
@@ -279,7 +280,7 @@ def generate_tensor_dataloaders(hparams, test_data, transforms):
         soft_labels_filename=hparams.soft_labels_filename)
     tensor_dataloader = DataLoader(
         test_dataset,
-        batch_size=hparams.sample_num,
+        batch_size=48,
         shuffle=False,
         num_workers=hparams.num_workers,
         pin_memory=True,

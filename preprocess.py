@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 import os
 import numpy as np
@@ -133,11 +134,12 @@ def random_positive_negative(input_dir, output_dir):
         
 
 def cal_overall_mean_and_std():
+    seed_reproducer(2022)
     hparams = init_hparams()
     train_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.training_set))
     test_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.test_set))
     data = pd.concat([train_data, test_data])
-    data = data.head(8)
+    # data = data.head(8)
     transforms = generate_transforms(hparams.image_size)
     dataloader = generate_tensor_dataloaders(hparams, data, transforms=transforms)
     channels_sum, channels_squared_sum, num_batches = 0, 0, 0
@@ -145,17 +147,20 @@ def cal_overall_mean_and_std():
         # Mean over batch, height and width, but not over the channels
         images = images.cuda()
         channels_sum += torch.mean(images, dim=[0,2,3])
-        channels_squared_sum += torch.mean(data**2, dim=[0,2,3])
+        channels_squared_sum += torch.mean(images**2, dim=[0,2,3])
         num_batches += 1
     
     mean = channels_sum / num_batches
 
     # std = sqrt(E[X^2] - (E[X])^2)
     std = (channels_squared_sum / num_batches - mean ** 2) ** 0.5
-    mean = mean.detach().cpu().numpy()
-    std = std.detach().cpu().numpy()
+    mean = mean.detach().cpu().numpy().tolist()
+    std = std.detach().cpu().numpy().tolist()
     print(mean)
     print(std)
+    norm = {'mean': mean, 'std': std}
+    with open(os.path.join(hparams.data_folder, 'normalization.json'), 'w') as f:
+        json.dump(norm, f, indent=2)
     
 if __name__ == '__main__':
 
