@@ -208,7 +208,8 @@ class CoolSystem(pl.LightningModule):
                                 labels, 
                                 filenames, 
                                 os.path.join(self.vis_val_output, str(self.current_epoch)), 
-                                save_batch=True) 
+                                save_batch=False,
+                                save_per_image=True) 
                 loss = self.criterion(scores, labels)
         elif dataloader_idx == 0:
             images, labels, data_load_time, filenames = batch
@@ -245,8 +246,9 @@ class CoolSystem(pl.LightningModule):
                 if filename.startswith(class_name):
                     img = cv2.imread(os.path.join(val_epoch_out_path, filename)) 
                     imgs.append(img)
-            imgs = cv2.vconcat(imgs)
-            cv2.imwrite(os.path.join(self.cat_val_output, f'{classname}.jpeg'), imgs)
+            if len(imgs): 
+                imgs = cv2.vconcat(imgs)
+                cv2.imwrite(os.path.join(self.cat_val_output, f'{class_name}.jpeg'), imgs)
             
             
         outputs = outputs[0]
@@ -435,7 +437,6 @@ if __name__ == "__main__":
         del trainer
         del model
         del train_dataloader
-        del test_dataloader
         del val_dataloader
         torch.cuda.empty_cache()
         gc.collect()
