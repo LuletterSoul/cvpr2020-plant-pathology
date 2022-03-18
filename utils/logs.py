@@ -9,6 +9,7 @@ import random
 from argparse import ArgumentParser
 from logging import Logger
 from logging.handlers import TimedRotatingFileHandler
+import shutil
 from tkinter.font import names
 
 # Third party libraries
@@ -22,7 +23,7 @@ IMG_SHAPE = (700, 600, 3)
 IMAGE_FOLDER = "data/images"
 NPY_FOLDER = "/home/public_data_center/kaggle/plant_pathology_2020/npys"
 LOG_FOLDER = "logs"
-
+import yaml
 
 def mkdir(path: str):
     """Create directory.
@@ -67,45 +68,65 @@ def seed_reproducer(seed=2020):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.enabled = True
 
+def get_parser():
+    parser = ArgumentParser()
+    parser.add_argument('--config', type=str,
+                        default='config/base.yaml', help='config path')
+    return parser
+
+
+def get_args(args):
+    with open(args.config) as cfg:
+        cfg = yaml.load(cfg, Loader=yaml.FullLoader)
+        cfg = DotMap(cfg, _dynamic=False)
+    return cfg
 
 def init_hparams():
-    parser = ArgumentParser(add_help=False)
-    parser.add_argument("-backbone",
-                        "--backbone",
-                        type=str,
-                        default="se_resnext50_32x4d")
+    parser :ArgumentParser = get_parser()
+    args = parser.parse_args()
+    hparams = get_args(args)
+    # parser = ArgumentParser(add_help=False)
+    # parser.add_argument("-backbone",
+    #                     "--backbone",
+    #                     type=str,
+    #                     default="se_resnext50_32x4d")
+    # # parser.add_argument("--data_folder",
+    #                     # default='/data/lxd/datasets/2021-12-12-Eggs')
     # parser.add_argument("--data_folder",
-                        # default='/data/lxd/datasets/2021-12-12-Eggs')
-    parser.add_argument("--data_folder",
-                        default='/data/lxd/datasets/2022-03-02-Eggs')
-    parser.add_argument("-tbs", "--train_batch_size", type=int, default=32 * 1)
-    parser.add_argument("-vbs", "--val_batch_size", type=int, default=32 * 1)
-    parser.add_argument("--num_workers", type=int, default=16)
-    parser.add_argument("--image_size", nargs="+", default=[700, 600])
-    parser.add_argument("--seed", type=int, default=2022)
-    parser.add_argument("--min_epochs", type=int, default=70)
-    parser.add_argument("--max_epochs", type=int, default=70)
-    parser.add_argument("--gpus", nargs="+", default=[2, 3])  # 输入1 2 3
-    parser.add_argument("--precision", type=int, default=16)
-    parser.add_argument("--gradient_clip_val", type=float, default=0)
-    parser.add_argument("--soft_labels_filename", type=str, default="")
-    parser.add_argument("--log_dir", type=str, default="logs_submit")
-    parser.add_argument("--sample_num", type=int, default=6)
-    try:
-        hparams = parser.parse_args()
-    except:
-        hparams = parser.parse_args([])
+    #                     default='/data/lxd/datasets/2022-03-02-Eggs')
+    # parser.add_argument("-tbs", "--train_batch_size", type=int, default=32 * 1)
+    # parser.add_argument("-vbs", "--val_batch_size", type=int, default=32 * 1)
+    # parser.add_argument("-tm", "--training_mode", type=str, default='ddp')
+    # parser.add_argument("--num_workers", type=int, default=16)
+    # parser.add_argument("--image_size", nargs="+", default=[700, 600])
+    # parser.add_argument("--seed", type=int, default=2022)
+    # parser.add_argument("--min_epochs", type=int, default=70)
+    # parser.add_argument("--max_epochs", type=int, default=70)
+    # parser.add_argument("--gpus", nargs="+", default=[2, 3])  # 输入1 2 3
+    # parser.add_argument("--precision", type=int, default=16)
+    # parser.add_argument("--gradient_clip_val", type=float, default=0)
+    # parser.add_argument("--soft_labels_filename", type=str, default="")
+    # parser.add_argument("--log_dir", type=str, default="logs_submit")
+    # parser.add_argument("--sample_num", type=int, default=6)
+    # try:
+    #     hparams = parser.parse_args()
+    # except:
+    #     hparams = parser.parse_args([])
+    # hparams = DotMap(vars(hparams), _dynamic=False)
+    print(hparams)
     if len(hparams.gpus) == 1:
         hparams.gpus = [int(hparams.gpus[0])]
     else:
         hparams.gpus = [int(gpu) for gpu in hparams.gpus]
-
     hparams.image_size = [int(size) for size in hparams.image_size]
-    return DotMap(vars(hparams), _dynamic=False)
+    hparams.config = args.config
+    return hparams
 
+def backup_config(config_path, output_path):
+    shutil.copy(config_path, output_path)
 
 def load_data(logger, frac=1):
     data, test_data = pd.read_csv("data/train.csv"), pd.read_csv(

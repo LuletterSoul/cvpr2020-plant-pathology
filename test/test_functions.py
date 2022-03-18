@@ -47,5 +47,5 @@ def test_eq():
     print(preds[indexes])
     
 if __name__ == '__main__':
-    # test_generate_activation_maps()
-    test_eq()
+    test_generate_activation_maps()
+    # test_eq()

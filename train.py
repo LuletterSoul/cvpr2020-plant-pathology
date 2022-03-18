@@ -37,6 +37,7 @@ class DataModule(pl.LightningDataModule):
         self._train_dataloader = train_dataloader
         self._test_dataloader = test_dataloader
         self._val_dataloader = val_dataloader
+    
 
     def train_dataloader(self):
         return self._train_dataloader
@@ -55,12 +56,13 @@ class CoolSystem(pl.LightningModule):
         self.hparams.update(hparams)
         # 让每次模型初始化一致, 不让只要中间有再次初始化的情况, 结果立马跑偏
         seed_reproducer(self.hparams.seed)
-        self.num_classes = len([dirname for dirname in 
-        os.listdir(self.hparams.data_folder) 
-        if os.path.isdir(os.path.join(self.hparams.data_folder, dirname))])
+        # self.num_classes = len([dirname for dirname in 
+        # for dirname in os.listdir(self.hparams.data_folder) 
+            # if os.path.isdir(os.path.join(self.hparams.data_folder, dirname))])
+        self.num_classes = hparams.num_classes
         self.model = se_resnext50_32x4d(num_classes=self.num_classes)
         self.criterion = CrossEntropyLossOneHot()
-        self.logger_kun = init_logger("kun_in", hparams.log_dir)
+        self.logger_kun = init_logger("egg_canding", hparams.log_dir)
 
         self.test_output = os.path.join(hparams.log_dir, 'test')
         self.val_output_dir = os.path.join(hparams.log_dir, 'val')
@@ -184,15 +186,16 @@ class CoolSystem(pl.LightningModule):
         self.log('test_roc_auc', test_roc_auc)
         return {"test_loss": test_loss_mean, "test_roc_auc": test_roc_auc}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx):
         step_start_time = time()
-        with torch.enable_grad():
-            images, labels, data_load_time, filenames = batch
-            data_load_time = torch.sum(data_load_time)
-            scores = self(images)
-            fp_indexes = select_fn_indexes(scores, labels) 
-            fn_filenames = np.array(filenames)[fp_indexes]
-            if len(fn_filenames):
+        if dataloader_idx == 1:
+            with torch.enable_grad():
+                self.eval()
+                self.zero_grad()
+                images, labels, data_load_time, filenames = batch
+                self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+                data_load_time = torch.sum(data_load_time)
+                scores = self(images)
                 visualization(batch_idx, 
                                 self.cam_extractors, 
                                 images, 
@@ -200,14 +203,14 @@ class CoolSystem(pl.LightningModule):
                                 labels, 
                                 filenames, 
                                 os.path.join(self.vis_val_output, str(self.current_epoch)), 
-                                save_batch=False, fp_indexes=np.arange(len(fn_filenames))) 
+                                save_batch=True) 
+                loss = self.criterion(scores, labels)
+        elif dataloader_idx == 0:
+            images, labels, data_load_time, filenames = batch
+            self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+            data_load_time = torch.sum(data_load_time)
             scores = self(images)
             loss = self.criterion(scores, labels)
-
-        images, labels, data_load_time, filenames = batch
-        data_load_time = torch.sum(data_load_time)
-        scores = self(images)
-        loss = self.criterion(scores, labels)
 
         # must return key -> val_loss
         return {
@@ -227,6 +230,8 @@ class CoolSystem(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         # compute loss
+        # only process the main validation set.
+        outputs = outputs[0]
         val_loss_mean = torch.stack([output["val_loss"]
                                      for output in outputs]).mean()
         self.data_load_times = torch.stack(
@@ -303,6 +308,14 @@ class CoolSystem(pl.LightningModule):
         self.log('val_roc_auc', val_roc_auc)
         return {"val_loss": val_loss_mean, "val_roc_auc": val_roc_auc}
 
+def get_training_strategy(hparams):
+    tm = hparams.training_mode
+    if tm == 'ddp':
+        return DDPPlugin(find_unused_parameters=False)
+    elif tm == 'ddp2':
+        return DDP2Plugin(find_unused_parameters=False)
+    elif tm =='dp':
+        return DataParallelPlugin()
 
 if __name__ == "__main__":
     # Make experiment reproducible
@@ -320,15 +333,19 @@ if __name__ == "__main__":
 
     os.makedirs(hparams.log_dir, exist_ok=True)
 
+    backup_config(hparams.config, hparams.log_dir)
+
     # init logger
     logger = init_logger("kun_out", log_dir=hparams.log_dir)
 
     # Load data
     # data, _ = load_training_data(logger, hparams.data_folder)
-    data = pd.read_csv(hparams.data_folder, 'train_4_3.csv')
+    # data = pd.read_csv(os.path.join(hparams.data_folder, 'train_4_3.csv'))
+    data = pd.read_csv(os.path.join(hparams.data_folder, hparams.training_set))
     header_names = ['filename'] + class_names 
     # test_data, _ = load_test_data_with_header(logger, hparams.data_folder, header_names=header_names)
-    test_data = pd.read_csv(hparams.data_folder, 'test_4_1.csv')
+    # test_data = pd.read_csv(os.path.join(hparams.data_folder, 'test_4_1.csv'))
+    test_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.test_set))
 
     # train_data = test_data.iloc[train_index, :].reset_index(drop=True)
     # Generate transforms
@@ -347,8 +364,9 @@ if __name__ == "__main__":
 
         train_dataloader, val_dataloader = generate_dataloaders(
             hparams, train_data, val_data, transforms)
+        val_dataloaders = [val_dataloader, anchor_dataloader]
 
-        da = DataModule(hparams, train_dataloader, val_dataloader, anchor_dataloader)
+        da = DataModule(hparams, train_dataloader, val_dataloaders, anchor_dataloader)
         # Define callbacks
         checkpoint_path = os.path.join(
                 hparams.log_dir, 'checkpoints')
@@ -369,8 +387,8 @@ if __name__ == "__main__":
         # Instance Model, Trainer and train model
         model = CoolSystem(hparams)
         trainer = pl.Trainer(
-            # fast_dev_run=True,
-            strategy=DDPPlugin(find_unused_parameters=False),
+            fast_dev_run=True,
+            strategy=get_training_strategy(hparams),
             gpus=hparams.gpus,
             num_nodes=1,
             min_epochs=hparams.min_epochs,
@@ -388,11 +406,11 @@ if __name__ == "__main__":
             gradient_clip_val=hparams.gradient_clip_val
         )
         trainer.fit(model, datamodule=da)
-        try:
-            trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[anchor_dataloader])
-            valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
-        except Exception as e:
-            print('Proccessing wrong in testing.')
+        # try:
+        #     trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[anchor_dataloader])
+        #     valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
+        # except Exception as e:
+        #     print('Proccessing wrong in testing.')
 
         del trainer
         del model

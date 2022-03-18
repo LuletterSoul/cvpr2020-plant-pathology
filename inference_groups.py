@@ -37,7 +37,6 @@ if __name__ == "__main__":
 
     filenames = [filename for filename in os.listdir(group_dir) if filename.endswith('.csv')]
 
-
     # Make experiment reproducible
     seed_reproducer(hparams.seed)
     timestamp = time.strftime("%Y%m%d-%H%M", time.localtime()) 
@@ -45,6 +44,8 @@ if __name__ == "__main__":
     logger = init_logger("kun_out", log_dir=hparams.log_dir)
     os.makedirs(base_dir, exist_ok=True)
     pred_datas = []
+    if hparams.debug == True:
+        filenames = filenames[:1]
     for filename in filenames:
         group_id = os.path.splitext(filename)[0]
         group_output_dir = os.path.join(base_dir, group_id)
@@ -58,7 +59,8 @@ if __name__ == "__main__":
         test_path = os.path.join(group_dir, filename)
         # test_data, data = load_test_data(logger, hparams.data_folder)
         test_data = pd.read_csv(test_path)
-        # test_data = test_data.head(8)
+        if hparams.debug:
+            test_data = test_data.head(8)
         gt_data = test_data.copy()
         transforms = generate_transforms(hparams.image_size)
 
@@ -101,8 +103,7 @@ if __name__ == "__main__":
             model.to("cuda")
             model.eval()
             model.zero_grad()
-
-            print(model)
+            # print(model)
             # cam_extractor = SmoothGradCAMpp(model, target_layer='model.model_ft.4.2.relu')
             cam_extractors = [SmoothGradCAMpp(model, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
             # cam_extractor = CAM(model, target_layer='model.model_ft.4.2.se_module.fc2')
@@ -122,10 +123,10 @@ if __name__ == "__main__":
                     
 
                     # select the false positive indexes
-                    fn_indexes = select_fn_indexes(pred, label)
-                    fn_filenames = np.array(filenames)[fn_indexes]
+                    # fn_indexes = select_fn_indexes(pred, label)
+                    # fn_filenames = np.array(filenames)[fn_indexes]
                     # if len(fn_filenames):
-                        # visualization(batch_id, cam_extractors, images, pred, label, filenames, vis_dir, save_batch=False, fp_indexes=fn_indexes) 
+                    visualization(batch_id, cam_extractors, images, pred, label, filenames, vis_dir, save_batch=True) 
 
                 labels = torch.cat(labels)
                 test_preds = torch.cat(test_preds)
@@ -149,19 +150,19 @@ if __name__ == "__main__":
             print(f'Error while handling report {group_id}')
 
     # generate average report for the whole group
-    avg_pred_data =  None
-    for pred_data in pred_datas:
-        if avg_pred_data is None:
-            avg_pred_data = pred_data
-        else:
-            avg_pred_data.iloc[:, 1:] = avg_pred_data.iloc[:, 1:] + pred_data.iloc[:, 1:]
+    # avg_pred_data =  None
+    # for pred_data in pred_datas:
+    #     if avg_pred_data is None:
+    #         avg_pred_data = pred_data
+    #     else:
+    #         avg_pred_data.iloc[:, 1:] = avg_pred_data.iloc[:, 1:] + pred_data.iloc[:, 1:]
     
-    avg_pred_data.iloc[:, 1:] = avg_pred_data.iloc[:, 1:] / len(pred_datas)
-    # print(avg_pred_data.head(10))
-    # avg_pred_data.iloc[:, 1:].div(len(pred_datas))
-    avg_pred_data.to_csv(os.path.join(avg_output_dir, f'avg_pred.csv'), index=False)
-    try:
-        generate_report(avg_pred_data, gt_data, group_id, report_dir)
-    except Exception as e:
-        traceback.print_exc()
-        print(f'Error while handling report {group_id}')
+    # avg_pred_data.iloc[:, 1:] = avg_pred_data.iloc[:, 1:] / len(pred_datas)
+    # # print(avg_pred_data.head(10))
+    # # avg_pred_data.iloc[:, 1:].div(len(pred_datas))
+    # avg_pred_data.to_csv(os.path.join(avg_output_dir, f'avg_pred.csv'), index=False)
+    # try:
+    #     generate_report(avg_pred_data, gt_data, group_id, avg_output_dir)
+    # except Exception as e:
+    #     traceback.print_exc()
+    #     print(f'Error while handling report {group_id}')

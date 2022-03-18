@@ -166,7 +166,8 @@ def generate_report(pred_data, gt_data, pred_filename, output_dir):
 if __name__ == "__main__":
     # Init Hyperparameters
     # test_result_files= ['submission_distill_five.csv', 'submission_distill_five_no_aug.csv','submission_distill_one.csv','submission_distill_one_no_aug.csv']
-    test_dir = 'test_results'
+    # test_dir = 'test_results'
+    test_dir = '/data/lxd/project/cvpr2020-plant-pathology/test_results/20220316-1719-group-testing/avg'
     test_result_files= [filename for filename in os.listdir(test_dir) if filename.endswith('.csv')]
     hparams = init_hparams()
 
