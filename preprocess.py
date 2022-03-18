@@ -5,7 +5,8 @@ import csv
 import random
 import cv2
 import pandas as pd
-
+from dataset import generate_tensor_dataloaders, generate_transforms
+from tqdm import tqdm
 from utils import *
 input_dir = '/data/lxd/datasets/2022-03-02-Eggs'
 output_dir = '/data/lxd/datasets/2022-03-02-Eggs'
@@ -79,7 +80,6 @@ def validate():
         except: 
             error_train_filenames.append(image_path)
 
-
     for filename in test_filenames:
         try:
             image_path = os.path.join(input_dir, filename)
@@ -132,12 +132,33 @@ def random_positive_negative(input_dir, output_dir):
         # print(sample_neg.shape)
         
 
+def cal_overall_mean_and_std():
+    hparams = init_hparams()
+    train_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.training_set))
+    test_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.test_set))
+    data = pd.concat([train_data, test_data])
+    data = data.head(8)
+    transforms = generate_transforms(hparams.image_size)
+    dataloader = generate_tensor_dataloaders(hparams, data, transforms=transforms)
+    channels_sum, channels_squared_sum, num_batches = 0, 0, 0
+    for batch_id, (images, label, times, filenames) in enumerate(tqdm(dataloader)):
+        # Mean over batch, height and width, but not over the channels
+        images = images.cuda()
+        channels_sum += torch.mean(images, dim=[0,2,3])
+        channels_squared_sum += torch.mean(data**2, dim=[0,2,3])
+        num_batches += 1
     
-    # self.data.loc[
-                            #    self.data['filename'].str.startswith(class_name)]
-    # pos = test_data[test_data.str.startwiths('OK')]
+    mean = channels_sum / num_batches
+
+    # std = sqrt(E[X^2] - (E[X])^2)
+    std = (channels_squared_sum / num_batches - mean ** 2) ** 0.5
+    mean = mean.detach().cpu().numpy()
+    std = std.detach().cpu().numpy()
+    print(mean)
+    print(std)
     
 if __name__ == '__main__':
 
-    random_positive_negative(input_dir='/data/lxd/datasets/2022-03-02-Eggs', 
-                             output_dir='/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-P_[0.92]_N_[0.08]')
+    # random_positive_negative(input_dir='/data/lxd/datasets/2022-03-02-Eggs', 
+                            #  output_dir='/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-P_[0.92]_N_[0.08]')
+    cal_overall_mean_and_std()

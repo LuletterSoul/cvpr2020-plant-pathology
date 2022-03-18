@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import torch
+import albumentations
 from albumentations import (
     Compose,
     GaussianBlur,
@@ -26,7 +27,9 @@ from albumentations import (
     ShiftScaleRotate,
     VerticalFlip,
 )
+from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
+from PIL import Image
 
 # User defined libraries
 from utils import *
@@ -106,7 +109,8 @@ class OpticalCandlingDataset(Dataset):
         # solution-1: read from raw image
         filename = self.data.iloc[index,0]
         path = os.path.join(self.data_folder, filename)
-        image = cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
+        # image = cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
+        image = Image.open(path).convert("RGB") 
         # solution-2: read from npy file which can speed the data load time.
         # image = np.load(os.path.join(NPY_FO21LDER, "raw", self.data.iloc[index, 0] + ".npy"))
 
@@ -118,8 +122,10 @@ class OpticalCandlingDataset(Dataset):
         #     print(image.shape)
 
         # Do data augmentation
-        if self.transforms is not None:
+        if self.transforms is not None and isinstance(self.transforms, albumentations.Compose) :
             image = self.transforms(image=image)["image"].transpose(2, 0, 1)
+        elif self.transforms is not None and isinstance(self.transforms,transforms.Compose):
+            image = self.transforms(image)
         
         # Soft label
         if self.soft_labels is not None:
@@ -181,9 +187,23 @@ def generate_transforms(image_size):
                   p=1.0),
     ])
 
+    tensor_transform = transforms.Compose([
+        transforms.Resize(size=image_size),
+        #    ShiftScaleRotate(
+        #     shift_limit=0.2,
+        #     scale_limit=0.2,
+        #     rotate_limit=20,
+        #     interpolation=cv2.INTER_LINEAR,
+        #     border_mode=cv2.BORDER_REFLECT_101,
+        #     p=1,
+        # ),
+        transforms.ToTensor()
+    ])
+
     return {
         "train_transforms": train_transform,
-        "val_transforms": val_transform
+        "val_transforms": val_transform,
+        'tensor_transforms': tensor_transform
     }
 
 
@@ -250,6 +270,22 @@ def generate_anchor_dataloaders(hparams, test_data, transforms):
         drop_last=False,
     )
     return anchor_dataloader
+
+def generate_tensor_dataloaders(hparams, test_data, transforms):
+    test_dataset = OpticalCandlingDataset(
+        data_folder=hparams.data_folder,
+        data=test_data,
+        transforms=transforms["tensor_transforms"],
+        soft_labels_filename=hparams.soft_labels_filename)
+    tensor_dataloader = DataLoader(
+        test_dataset,
+        batch_size=hparams.sample_num,
+        shuffle=False,
+        num_workers=hparams.num_workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+    return tensor_dataloader
 
 
 if __name__ == '__main__':

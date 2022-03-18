@@ -20,3 +20,6 @@ soft_labels_filename: ""
 log_dir: logs_submit
 sample_num: 6
 debug: False
+normalization:
+  mean: [0.4914, 0.4822, 0.4465]
+  std: [0.247, 0.243, 0.261]
