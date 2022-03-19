@@ -153,8 +153,9 @@ class CoolSystem(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         step_start_time = time()
         with torch.enable_grad():
-            self.unfreeze()
+            # self.unfreeze()
             self.eval()
+            self.zero_grad()
             images, labels, data_load_time, filenames = batch
             images.requires_grad = True
             # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
@@ -172,7 +173,7 @@ class CoolSystem(pl.LightningModule):
                             mean=self.hparams.norm['mean'],
                             std=self.hparams.norm['std']) 
             loss = self.criterion(scores, labels)
-            self.freeze() 
+            # self.freeze() 
         # must return key -> val_loss
         return {
             "filenames": np.array(filenames),
@@ -223,8 +224,9 @@ class CoolSystem(pl.LightningModule):
             # self.model.zero_grad()
             # self.eval()
             with torch.enable_grad():
-                self.unfreeze()
+                # self.unfreeze()
                 self.eval()
+                self.zero_grad()
                 images, labels, data_load_time, filenames = batch
                 images.requires_grad = True
                 # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
@@ -241,7 +243,7 @@ class CoolSystem(pl.LightningModule):
                                 save_per_image=True,
                                 mean=self.hparams.norm['mean'],
                                 std=self.hparams.norm['std']) 
-                self.freeze()
+                # self.freeze()
             loss = self.criterion(scores, labels)
         elif dataloader_idx == 0:
             images, labels, data_load_time, filenames = batch
