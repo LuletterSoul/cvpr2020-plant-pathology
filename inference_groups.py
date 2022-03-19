@@ -32,11 +32,10 @@ if __name__ == "__main__":
     # Init Hyperparameters
     hparams = init_hparams()
     
-    group_dir = '/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-P_[0.92]_N_[0.08]'
+    # group_dir = '/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-P_[0.92]_N_[0.08]'
     # group_dir = '/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-02-test_set'
-
+    group_dir = hparams.data_folder
     filenames = [filename for filename in os.listdir(group_dir) if filename.endswith('.csv')]
-
     # Make experiment reproducible
     seed_reproducer(hparams.seed)
     timestamp = time.strftime("%Y%m%d-%H%M", time.localtime()) 
@@ -76,14 +75,17 @@ if __name__ == "__main__":
         #     "logs_submit/fold=3-epoch=48-val_loss=0.1161-val_roc_auc=0.9980.ckpt",
         #     "logs_submit/fold=4-epoch=67-val_loss=0.1012-val_roc_auc=0.9979.ckpt"
         # ]
-        PATH = [
-            "logs_submit/20220305-0932/fold=0-epoch=59-val_loss=0.1946-val_roc_auc=0.9945.ckpt",
-            "logs_submit/20220305-0932/fold=1-epoch=39-val_loss=0.2358-val_roc_auc=0.9913.ckpt",
-            "logs_submit/20220305-0932/fold=2-epoch=49-val_loss=0.2395-val_roc_auc=0.9913.ckpt",
-            "logs_submit/20220305-0932/fold=3-epoch=48-val_loss=0.2291-val_roc_auc=0.9918.ckpt",
-            "logs_submit/20220305-0932/fold=4-epoch=59-val_loss=0.2246-val_roc_auc=0.9926.ckpt",
-            ]
+        # PATH = [
+        #     "logs_submit/20220305-0932/fold=0-epoch=59-val_loss=0.1946-val_roc_auc=0.9945.ckpt",
+        #     "logs_submit/20220305-0932/fold=1-epoch=39-val_loss=0.2358-val_roc_auc=0.9913.ckpt",
+        #     "logs_submit/20220305-0932/fold=2-epoch=49-val_loss=0.2395-val_roc_auc=0.9913.ckpt",
+        #     "logs_submit/20220305-0932/fold=3-epoch=48-val_loss=0.2291-val_roc_auc=0.9918.ckpt",
+        #     "logs_submit/20220305-0932/fold=4-epoch=59-val_loss=0.2246-val_roc_auc=0.9926.ckpt",
+        #     ]
 
+        PATH = [
+            'logs_submit/20220319-0212/checkpoints/fold=0-epoch=37-val_loss=0.2775-val_roc_auc=0.9872.ckpt'
+        ]
         # ==============================================================================================================
         # Test Submit
         # ==============================================================================================================

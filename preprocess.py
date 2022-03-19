@@ -140,7 +140,7 @@ def cal_overall_mean_and_std():
     test_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.test_set))
     data = pd.concat([train_data, test_data])
     # data = data.head(8)
-    transforms = generate_transforms(hparams.image_size)
+    transforms = generate_transforms(hparams)
     dataloader = generate_tensor_dataloaders(hparams, data, transforms=transforms)
     channels_sum, channels_squared_sum, num_batches = 0, 0, 0
     for batch_id, (images, label, times, filenames) in enumerate(tqdm(dataloader)):

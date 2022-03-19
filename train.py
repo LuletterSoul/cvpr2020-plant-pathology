@@ -11,6 +11,7 @@ import numpy as np
 import time as ts
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from torchcam.methods.activation import CAM
 from torchvision.transforms.functional import to_tensor
 # Third party libraries
 import torch
@@ -65,30 +66,43 @@ class CoolSystem(pl.LightningModule):
         self.criterion = CrossEntropyLossOneHot()
         self.logger_kun = init_logger("egg_canding", hparams.log_dir)
 
-        self.test_output = os.path.join(hparams.log_dir, 'test')
-        self.val_output_dir = os.path.join(hparams.log_dir, 'val')
-        os.makedirs(self.test_output, exist_ok=True)
+        self.test_output_dir = os.path.join(hparams.log_dir, f'fold-{hparams.fold_i}', 'test')
+        self.val_output_dir = os.path.join(hparams.log_dir, f'fold-{hparams.fold_i}','val')
+        os.makedirs(self.test_output_dir, exist_ok=True)
         os.makedirs(self.val_output_dir, exist_ok=True)
 
-        self.vis_test_output = os.path.join(self.test_output, 'vis')
+        self.vis_test_output = os.path.join(self.test_output_dir, 'vis')
         self.vis_val_output = os.path.join(self.val_output_dir, 'vis')
         os.makedirs(self.vis_val_output, exist_ok=True)
         os.makedirs(self.vis_test_output, exist_ok=True)
 
 
-        self.cat_test_output = os.path.join(self.test_output, 'cat')
+        self.cat_test_output = os.path.join(self.test_output_dir, 'cat')
         self.cat_val_output = os.path.join(self.val_output_dir, 'cat')
         os.makedirs(self.cat_val_output, exist_ok=True)
         os.makedirs(self.cat_test_output, exist_ok=True)
-        self.cam_extractors = [SmoothGradCAMpp(self, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
-        self.global_epoch = 0
+        # self.cam_extractors = [SmoothGradCAMpp(self, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
+        # self.cam_extractors = [
+        #                         SmoothGradCAMpp(self, target_layer=f'model.model_ft.0'),
+        #                         SmoothGradCAMpp(self, target_layer=f'model.model_ft.1.2'),
+        #                         SmoothGradCAMpp(self, target_layer=f'model.model_ft.2.3'),
+        #                         SmoothGradCAMpp(self, target_layer=f'model.model_ft.3.5'),
+        #                         SmoothGradCAMpp(self, target_layer=f'model.model_ft.4.2'),
+        #                        ]
+        # self.cam_extractors = [SmoothGradCAMpp(self, target_layer=f'model.model_ft.{i}.2.se_module') for i in range(1, 5)]
+        # self.cam_extractors = [CAM(self)]
+        self.cam_extractors = [
+                                 CAM(self, fc_layer='model.binary_head.fc.0', target_layer='model.model_ft.4.0.se_module'),
+                                 CAM(self, fc_layer='model.binary_head.fc.0', target_layer='model.model_ft.4.1.se_module'),
+                                 CAM(self, fc_layer='model.binary_head.fc.0', target_layer='model.model_ft.4.2.se_module'),
+                               ]
 
     def forward(self, x):
         return self.model(x)
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.Adam(self.parameters(),
-                                          lr=0.001,
+                                          lr=self.hparams.lr,
                                           betas=(0.9, 0.999),
                                           eps=1e-08,
                                           weight_decay=0)
@@ -139,17 +153,30 @@ class CoolSystem(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         step_start_time = time()
         with torch.enable_grad():
+            self.unfreeze()
+            self.eval()
             images, labels, data_load_time, filenames = batch
+            images.requires_grad = True
+            # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
             data_load_time = torch.sum(data_load_time)
             scores = self(images)
+            visualization(batch_idx, 
+                            self.cam_extractors, 
+                            images, 
+                            scores, 
+                            labels, 
+                            filenames, 
+                            os.path.join(self.vis_test_output, str(self.current_epoch)), 
+                            save_batch=True,
+                            save_per_image=False,
+                            mean=self.hparams.norm['mean'],
+                            std=self.hparams.norm['std']) 
             loss = self.criterion(scores, labels)
-
-            visualization(batch_idx, self.cam_extractors, images, scores, labels, filenames, 
-                        os.path.join(self.vis_test_output, str(self.current_epoch)), save_batch=True, mean=self.hparams.norm['mean'], std=self.hparams.norm['std'])
+            self.freeze() 
         # must return key -> val_loss
         return {
             "filenames": np.array(filenames),
-            "val_loss":
+            "test_loss":
             loss.detach(),
             "scores":
             scores.detach(),
@@ -164,7 +191,7 @@ class CoolSystem(pl.LightningModule):
 
     def  test_epoch_end(self, outputs):
         # compute loss
-        test_loss_mean = torch.stack([output["val_loss"]
+        test_loss_mean = torch.stack([output["test_loss"]
                                      for output in outputs]).mean()
         self.data_load_times = torch.stack(
             [output["data_load_time"] for output in outputs]).sum()
@@ -176,19 +203,15 @@ class CoolSystem(pl.LightningModule):
         scores_all = torch.cat([output["scores"] for output in outputs]).cpu()
         labels_all = torch.round(
             torch.cat([output["labels"] for output in outputs]).cpu())
-        # val_roc_auc = roc_auc_score(labels_all, scores_all)
+        filenames = np.concatenate([output["filenames"] for output in outputs])
+        self.save_false_positive(scores_all, labels_all, filenames, self.test_output_dir)
         test_roc_auc = get_roc_auc(labels_all, scores_all)
-        # visualization(0, self.cam_extractors, images, scores_all, labels_all, filenames, 
-                    #   self.vis_test_output, save_batch=True)
         self.logger_kun.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
                              f"lr : {self.scheduler.get_lr()[0]:.6f} | "
-                             f"anchor_loss : {test_loss_mean:.4f} | "
-                             f"anchor_val_roc_auc : {test_roc_auc:.4f} | "
+                             f"test_loss : {test_loss_mean:.4f} | "
+                             f"test_roc_auc : {test_roc_auc:.4f} | "
                              f"data_load_times : {self.data_load_times:.2f} | "
                              f"batch_run_times : {self.batch_run_times:.2f}")
-        # f"data_load_times : {self.data_load_times:.2f} | "
-        # f"batch_run_times : {self.batch_run_times:.2f}"
-        # must return key -> val_loss
         self.log('test_loss', test_loss_mean)
         self.log('test_roc_auc', test_roc_auc)
         return {"test_loss": test_loss_mean, "test_roc_auc": test_roc_auc}
@@ -196,8 +219,14 @@ class CoolSystem(pl.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx):
         step_start_time = time()
         if dataloader_idx == 1:
+            # self.model.eval()
+            # self.model.zero_grad()
+            # self.eval()
             with torch.enable_grad():
+                self.unfreeze()
+                self.eval()
                 images, labels, data_load_time, filenames = batch
+                images.requires_grad = True
                 # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
                 data_load_time = torch.sum(data_load_time)
                 scores = self(images)
@@ -212,7 +241,8 @@ class CoolSystem(pl.LightningModule):
                                 save_per_image=True,
                                 mean=self.hparams.norm['mean'],
                                 std=self.hparams.norm['std']) 
-                loss = self.criterion(scores, labels)
+                self.freeze()
+            loss = self.criterion(scores, labels)
         elif dataloader_idx == 0:
             images, labels, data_load_time, filenames = batch
             # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
@@ -235,10 +265,31 @@ class CoolSystem(pl.LightningModule):
             torch.Tensor([time() - step_start_time + data_load_time
                           ]).to(data_load_time.device),
         }
-
-    def validation_epoch_end(self, outputs):
-        # compute loss
-        # only process the main validation set.
+    
+    def save_false_positive(self, scores_all, labels_all, filenames, output_dir):
+        """Save false negative list into CSV file.
+        Args:
+            scores_all (_type_): _description_
+            labels_all (_type_): _description_
+            filenames (_type_): _description_
+            output_dir (_type_): _description_
+        """
+        fp_indexes = select_fn_indexes(scores_all, labels_all) 
+        fp_filenames = filenames[fp_indexes]
+        fp_scores = torch.softmax(scores_all[fp_indexes],dim=1)
+        fp_labels = labels_all[fp_indexes] # one-hot label, [n, num_classes]
+        fp_label_names = np.array(class_names)[torch.argmax(fp_labels, dim=1).detach().cpu().numpy()] # label name [n, 1]
+        fp_pred_names = np.array(class_names)[torch.argmax(fp_scores, dim=1).detach().cpu().numpy()] # label name [n, 1]
+        save_path = os.path.join(output_dir, f'{self.hparams.fold_i}-{self.current_epoch}-fp.csv')
+        df = pd.DataFrame({'filename': fp_filenames, 'label': fp_label_names, 'pred': fp_pred_names})
+        pred = pd.DataFrame(fp_scores.detach().cpu().numpy(), columns=class_names)
+        fp_df = pd.concat([df, pred], axis=1)
+        fp_df.to_csv(save_path, index=True)
+    
+    def cat_image_in_ddp(self):
+        """In ddp mode, the each intermidiate output are saved by different processes. This function collect them and cat 
+        these images together for better visualization.
+        """
         val_epoch_out_path = os.path.join(self.vis_val_output, str(self.current_epoch))
         cat_epoch_out_path = os.path.join(self.cat_val_output, str(self.current_epoch))
         os.makedirs(cat_epoch_out_path, exist_ok=True)
@@ -255,8 +306,12 @@ class CoolSystem(pl.LightningModule):
             if len(imgs): 
                 imgs = cv2.vconcat(imgs)
                 cv2.imwrite(os.path.join(cat_epoch_out_path, f'{class_name}.jpeg'), imgs)
-            
-            
+                  
+
+    def validation_epoch_end(self, outputs):
+        self.cat_image_in_ddp() 
+        # compute loss
+        # only process the main validation set.
         outputs = outputs[0]
         val_loss_mean = torch.stack([output["val_loss"]
                                      for output in outputs]).mean()
@@ -269,55 +324,10 @@ class CoolSystem(pl.LightningModule):
         # labels_all = torch.round(
         #     torch.cat([output["labels"] for output in outputs]).cpu())
         labels_all = torch.cat([output["labels"] for output in outputs])
-        fp_indexes = select_fn_indexes(scores_all, labels_all) 
-        filenames = np.concatenate([output["filenames"] for output in outputs])
-        fp_filenames = filenames[fp_indexes]
-        fp_scores = torch.softmax(scores_all[fp_indexes],dim=1)
-        fp_labels = labels_all[fp_indexes] # one-hot label, [n, num_classes]
-        fp_label_names = np.array(class_names)[torch.argmax(fp_labels, dim=1).detach().cpu().numpy()] # label name [n, 1]
-        fp_pred_names = np.array(class_names)[torch.argmax(fp_scores, dim=1).detach().cpu().numpy()] # label name [n, 1]
-        # compute roc_auc
-        
-        # if len(fp_filenames):
-            # the false negative may be large in each validation epoch.
-            # with torch.set_grad_enabled(True):
-            #     self.eval()
-            #     fp_num = len(fp_filenames)
-            #     fp_scores = scores_all[fp_indexes]
-        # fp_labels = labels_all[fp_indexes] # one-hot label, [n, num_classes]
-                # fp_label_names = np.array(class_names)[torch.argmax(fp_labels, dim=1).detach().cpu().numpy()] # label name [n, 1]
-            #     group_num = fp_num // self.hparams.train_batch_size
-            #     # divide groups
-            #     group_num = group_num if group_num > 0 else 1
-            #     fp_index_groups = np.array_split(np.arange(fp_num),  group_num)
-            #     # split groups by batch size for avoiding the memory overflowing
-            #     for idx, group in enumerate(fp_index_groups):
-            #         g_filenames = fp_filenames[group]
-            #         g_indexes = np.arange(len(g_filenames))
-            #         # [g, 3, h, w]
-            #         images = [to_tensor(Image.open(os.path.join(self.hparams.data_folder, filename))) for filename in g_filenames]
-            #         # a forward for producing feature map
-            #         images = torch.stack(images).cuda()
-            #         images.requires_grad = True
-            #         torch.cuda.empty_cache()
-            #         self(images)
-            #         # [g, num_classes]
-            #         g_scores = fp_scores[group].to(images.device)
-            #         g_labels = fp_labels[group].to(images.device)
-            #         visualization(idx, self.cam_extractors, 
-            #                         images, 
-            #                         g_scores, 
-            #                         g_labels, 
-            #                         fp_filenames, 
-            #                         self.vis_val_output, 
-            #                         save_batch=False, 
-            #                         fp_indexes=g_indexes)
 
-        save_path = os.path.join(self.val_output_dir, f'{self.hparams.fold_i}-{self.current_epoch}-fp.csv')
-        df = pd.DataFrame({'filename': fp_filenames, 'label': fp_label_names, 'pred': fp_pred_names})
-        pred = pd.DataFrame(fp_scores.detach().cpu().numpy(), columns=class_names)
-        fp_df = pd.concat([df, pred], axis=1)
-        fp_df.to_csv(save_path, index=True)
+        filenames = np.concatenate([output["filenames"] for output in outputs])
+      
+        self.save_false_positive(scores_all, labels_all, filenames, self.val_output_dir)
 
         
         val_roc_auc = get_roc_auc(labels_all, scores_all)
@@ -349,11 +359,10 @@ if __name__ == "__main__":
 
     # Init Hyperparameters
     hparams = init_hparams()
-    print(hparams)
 
     timestamp = ts.strftime("%Y%m%d-%H%M", ts.localtime()) 
 
-    output_dir = os.path.join(hparams.log_dir, timestamp)
+    output_dir = os.path.join(hparams.log_dir, f'{timestamp}-{hparams.exp_name}')
 
     hparams.log_dir = output_dir
 
@@ -414,6 +423,8 @@ if __name__ == "__main__":
 
         # Instance Model, Trainer and train model
         model = CoolSystem(hparams)
+        print(model)
+        # model.load_state_dict(torch.load(hparams.resume_from_checkpoint, map_location="cuda")["state_dict"])
         trainer = pl.Trainer(
             fast_dev_run=hparams.debug,
             strategy=get_training_strategy(hparams),
@@ -429,6 +440,7 @@ if __name__ == "__main__":
             precision=hparams.precision,
             num_sanity_val_steps=0,
             profiler=False,
+            resume_from_checkpoint=hparams.resume_from_checkpoint,
             # weights_summary=None,
             # use_dp=True,
             gradient_clip_val=hparams.gradient_clip_val

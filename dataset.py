@@ -23,6 +23,7 @@ from albumentations import (
     OneOf,
     RandomBrightness,
     RandomContrast,
+    RandomBrightnessContrast,
     Resize,
     ShiftScaleRotate,
     VerticalFlip,
@@ -155,15 +156,15 @@ def generate_transforms(hparams):
 
     train_transform = Compose([
         Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
-        OneOf(
-            [RandomBrightness(limit=0.1, p=1),
-             RandomContrast(limit=0.1, p=1)]),
+        # OneOf(
+            # [RandomBrightness(limit=0.1, p=1),
+            #  RandomContrast(limit=0.1, p=1)]),
+        RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
         OneOf([
-            MotionBlur(blur_limit=3),
-            MedianBlur(blur_limit=3),
-            GaussianBlur(blur_limit=3)
-        ],
-              p=0.5),
+            MotionBlur(blur_limit=(3,5)),
+            MedianBlur(blur_limit=(3,5)),
+            GaussianBlur(blur_limit=(3,5))
+        ], p=0.5),
         VerticalFlip(p=0.5),
         HorizontalFlip(p=0.5),
         ShiftScaleRotate(

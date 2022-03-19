@@ -3,6 +3,7 @@ import torch
 import sys
 import os
 # sys.path.append('./')
+from typing import Any, List, Optional, Tuple, Union
 from matplotlib import cm
 import cv2
 from torchvision.transforms.functional import to_pil_image
@@ -90,7 +91,7 @@ def img_denorm(image, mean, std):
     return torch.clamp(image, 0, 1)
  
 
-def visualization(batch_id, cam_extractors, images, preds, labels, filenames, output_dir, save_batch=True,save_per_image=False, fp_indexes= None, norm=True, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+def visualization(batch_id, cam_extractors : List[SmoothGradCAMpp], images, preds, labels, filenames, output_dir, save_batch=True,save_per_image=False, fp_indexes= None, norm=True, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """render the convolutional activation in the images.
 
     Args:
@@ -185,7 +186,6 @@ def select_fn_indexes(pred, label):
 
 def get_roc_auc(labels, scores):
     class_num = labels.argmax(dim=1).unique() 
-    print(class_num)
     val_roc_auc = 0
     try:
         if len(class_num) == 1:

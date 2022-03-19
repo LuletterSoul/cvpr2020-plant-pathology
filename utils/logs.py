@@ -116,7 +116,6 @@ def init_hparams():
     # except:
     #     hparams = parser.parse_args([])
     # hparams = DotMap(vars(hparams), _dynamic=False)
-    print(hparams)
     if len(hparams.gpus) == 1:
         hparams.gpus = [int(hparams.gpus[0])]
     else:

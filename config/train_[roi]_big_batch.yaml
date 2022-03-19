@@ -1,11 +1,13 @@
 backbone: se_resnext50_32x4d
+exp_name: batch-large
 # data_folder: /data/lxd/datasets/2022-03-02-Eggs
 data_folder: /data/lxd/datasets/2022-03-17-Egg-Masks/
 training_set: train_4_3.csv
 test_set : test_4_1.csv
 num_classes: 8
-train_batch_size: 12
-val_batch_size: 6
+lr: 0.001
+train_batch_size: 48
+val_batch_size: 96
 anchor_batch_size: 6
 training_mode: ddp
 num_workers: 8
@@ -13,13 +15,16 @@ image_size: [600, 600]
 seed: 2022
 min_epochs: 70
 max_epochs: 70
-gpus: [2,3]
+gpus: [0,1]
 precision: 16
 gradient_clip_val: 0
 soft_labels_filename: ""
 log_dir: logs_submit
 sample_num: 6
-debug: True
+debug: False
+# normalization:
+#   mean: [0.4914, 0.4822, 0.4465]
+#   std: [0.247, 0.243, 0.261]
 norm: 
   mean: [
     0.4755111336708069,
@@ -31,3 +36,6 @@ norm:
     0.295562744140625,
     0.2568116784095764
   ]
+resume_from_checkpoint: 
+checkpoints: 
+ - logs_submit/20220319-0212/checkpoints/fold=0-epoch=37-val_loss=0.2775-val_roc_auc=0.9872.ckpt
