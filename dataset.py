@@ -152,42 +152,64 @@ class AnchorSet(OpticalCandlingDataset):
                                self.data['filename'].str.startswith(class_name)].head(sample_num) 
                               for class_name in class_names])
 
+def get_non_trivial_transforms(hparams):
+    """use for the baseline model, we don't use any additional data augmentation.
+
+    Args:
+        hparams (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    return Compose([
+            Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
+            Normalize(mean=hparams.norm['mean'],
+                    std= hparams.norm['std'],
+                    max_pixel_value=255.0,
+                    p=1.0),
+        ])
+    
+
 def generate_transforms(hparams):
 
-    train_transform = Compose([
-        Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
-        # OneOf(
-            # [RandomBrightness(limit=0.1, p=1),
-            #  RandomContrast(limit=0.1, p=1)]),
-        RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
-        OneOf([
-            MotionBlur(blur_limit=(3,5)),
-            MedianBlur(blur_limit=(3,5)),
-            GaussianBlur(blur_limit=(3,5))
-        ], p=0.5),
-        VerticalFlip(p=0.5),
-        HorizontalFlip(p=0.5),
-        ShiftScaleRotate(
-            shift_limit=0.2,
-            scale_limit=0.2,
-            rotate_limit=20,
-            interpolation=cv2.INTER_LINEAR,
-            border_mode=cv2.BORDER_REFLECT_101,
-            p=1,
-        ),
-        Normalize(mean=hparams.norm['mean'],
-                  std=hparams.norm['std'],
-                  max_pixel_value=255.0,
-                  p=1.0),
-    ])
+    if hparams.train_transforms == 'non-trivial':
+        train_transform = get_non_trivial_transforms(hparams)
+    else:
+        train_transform = Compose([
+            Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
+            # OneOf(
+                # [RandomBrightness(limit=0.1, p=1),
+                #  RandomContrast(limit=0.1, p=1)]),
+            RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
+            OneOf([
+                MotionBlur(blur_limit=(3,5)),
+                MedianBlur(blur_limit=(3,5)),
+                GaussianBlur(blur_limit=(3,5))
+            ], p=0.5),
+            VerticalFlip(p=0.5),
+            HorizontalFlip(p=0.5),
+            ShiftScaleRotate(
+                shift_limit=0.2,
+                scale_limit=0.2,
+                rotate_limit=20,
+                interpolation=cv2.INTER_LINEAR,
+                border_mode=cv2.BORDER_REFLECT_101,
+                p=1,
+            ),
+            Normalize(mean=hparams.norm['mean'],
+                    std=hparams.norm['std'],
+                    max_pixel_value=255.0,
+                    p=1.0),
+        ])
 
-    val_transform = Compose([
-        Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
-        Normalize(mean=hparams.norm['mean'],
-                  std= hparams.norm['std'],
-                  max_pixel_value=255.0,
-                  p=1.0),
-    ])
+    val_transform = get_non_trivial_transforms(hparams)
+    # val_transform = Compose([
+    #     Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
+    #     Normalize(mean=hparams.norm['mean'],
+    #               std= hparams.norm['std'],
+    #               max_pixel_value=255.0,
+    #               p=1.0),
+    # ])
 
     tensor_transform = transforms.Compose([
         transforms.Resize(size=hparams.image_size),

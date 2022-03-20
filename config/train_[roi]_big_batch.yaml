@@ -6,6 +6,8 @@ training_set: train_4_3.csv
 test_set : test_4_1.csv
 num_classes: 8
 lr: 0.001
+# training 
+train_transforms: non-trivial             
 train_batch_size: 48
 val_batch_size: 96
 anchor_batch_size: 6
