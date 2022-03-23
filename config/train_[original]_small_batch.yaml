@@ -23,7 +23,7 @@ gradient_clip_val: 0
 soft_labels_filename: ""
 log_dir: logs_submit
 sample_num: 6
-debug: False
+debug: true
 norm: 
   mean: [
     0.2946946918964386,
@@ -37,4 +37,5 @@ norm:
   ]
 resume_from_checkpoint: 
 checkpoints: 
- - logs_submit/20220319-0212/checkpoints/fold=0-epoch=49-val_loss=0.2538-val_roc_auc=0.9881.ckpt
+#  - logs_submit/20220319-0212/checkpoints/fold=0-epoch=49-val_loss=0.2538-val_roc_auc=0.9881.ckpt
+ - /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220319-2105-batch-small/checkpoints/fold=0-epoch=58-val_loss=0.2434-val_roc_auc=0.9904.ckpt

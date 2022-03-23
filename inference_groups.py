@@ -10,6 +10,7 @@ import traceback
 import torch
 from scipy.special import softmax
 from torch.utils.data import DataLoader
+from torchcam.methods.activation import CAM
 from torchvision.utils import save_image
 from tqdm import tqdm
 
@@ -17,28 +18,27 @@ from tqdm import tqdm
 from dataset import OpticalCandlingDataset, generate_transforms
 from test_from_csv import generate_report
 from train import CoolSystem
-from utils import init_hparams, init_logger, load_test_data, seed_reproducer 
+from utils import init_hparams, init_logger, load_test_data, seed_reproducer
 # from torchvision.transforms.functional import normalize, resize, to_pil_image
 from torchcam.methods import SmoothGradCAMpp
 import matplotlib.pyplot as plt
 from utils import *
 import time
 
-
-
-    
-
 if __name__ == "__main__":
     # Init Hyperparameters
     hparams = init_hparams()
-    
+
     # group_dir = '/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-P_[0.92]_N_[0.08]'
     # group_dir = '/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-02-test_set'
     group_dir = hparams.data_folder
-    filenames = [filename for filename in os.listdir(group_dir) if filename.endswith('.csv')]
+    filenames = [
+        filename for filename in os.listdir(group_dir)
+        if filename.endswith('.csv')
+    ]
     # Make experiment reproducible
     seed_reproducer(hparams.seed)
-    timestamp = time.strftime("%Y%m%d-%H%M", time.localtime()) 
+    timestamp = time.strftime("%Y%m%d-%H%M", time.localtime())
     base_dir = os.path.join("test_results", f'{timestamp}-group-testing')
     logger = init_logger("kun_out", log_dir=hparams.log_dir)
     os.makedirs(base_dir, exist_ok=True)
@@ -83,31 +83,51 @@ if __name__ == "__main__":
         #     "logs_submit/20220305-0932/fold=4-epoch=59-val_loss=0.2246-val_roc_auc=0.9926.ckpt",
         #     ]
 
-        PATH = [
-            'logs_submit/20220319-0212/checkpoints/fold=0-epoch=37-val_loss=0.2775-val_roc_auc=0.9872.ckpt'
-        ]
+        # PATH = [
+        #     'logs_submit/20220319-0212/checkpoints/fold=0-epoch=37-val_loss=0.2775-val_roc_auc=0.9872.ckpt'
+        # ]
+        PATH = hparams.checkpoints
         # ==============================================================================================================
         # Test Submit
         # ==============================================================================================================
         test_dataset = OpticalCandlingDataset(
-            hparams.data_folder, test_data, transforms=transforms["val_transforms"], soft_labels_filename=hparams.soft_labels_filename
-        )
+            hparams.data_folder,
+            test_data,
+            transforms=transforms["val_transforms"],
+            soft_labels_filename=hparams.soft_labels_filename)
 
         test_dataloader = DataLoader(
-            test_dataset, batch_size=hparams.val_batch_size, shuffle=False, num_workers=hparams.num_workers, pin_memory=True, drop_last=False,
+            test_dataset,
+            batch_size=hparams.val_batch_size,
+            shuffle=False,
+            num_workers=hparams.num_workers,
+            pin_memory=True,
+            drop_last=False,
         )
 
         # gt_data, data = load_test_data_with_header(logger, hparams.data_folder, header_names)
         # gt_labels = gt_data.iloc[:, 1:].to_numpy()
 
         for path in PATH:
-            model.load_state_dict(torch.load(path, map_location="cuda")["state_dict"])
+            model.load_state_dict(
+                torch.load(path, map_location="cuda")["state_dict"])
             model.to("cuda")
             model.eval()
             model.zero_grad()
             # print(model)
             # cam_extractor = SmoothGradCAMpp(model, target_layer='model.model_ft.4.2.relu')
-            cam_extractors = [SmoothGradCAMpp(model, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
+            cam_extractors = [
+                CAM(model,
+                    fc_layer='model.binary_head.fc.0',
+                    target_layer='model.model_ft.4.0.se_module'),
+                CAM(model,
+                    fc_layer='model.binary_head.fc.0',
+                    target_layer='model.model_ft.4.1.se_module'),
+                CAM(model,
+                    fc_layer='model.binary_head.fc.0',
+                    target_layer='model.model_ft.4.2.se_module'),
+            ]
+            # cam_extractors = [SmoothGradCAMpp(model, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
             # cam_extractor = CAM(model, target_layer='model.model_ft.4.2.se_module.fc2')
             b = hparams.val_batch_size
             n = len(cam_extractors)
@@ -116,19 +136,26 @@ if __name__ == "__main__":
                 test_preds = []
                 labels = []
                 # with torch.no_grad():
-                for batch_id, (images, label, times, filenames) in enumerate(tqdm(test_dataloader)):
+                for batch_id, (images, label, times,
+                               filenames) in enumerate(tqdm(test_dataloader)):
                     h, w = images.size()[-2:]
                     label = label.cuda()
                     pred = model(images.cuda()).detach()
                     test_preds.append(pred)
                     labels.append(label)
-                    
 
                     # select the false positive indexes
                     # fn_indexes = select_fn_indexes(pred, label)
                     # fn_filenames = np.array(filenames)[fn_indexes]
                     # if len(fn_filenames):
-                    visualization(batch_id, cam_extractors, images, pred, label, filenames, vis_dir, save_batch=True) 
+                    visualization(batch_id,
+                                  cam_extractors,
+                                  images,
+                                  pred,
+                                  label,
+                                  filenames,
+                                  vis_dir,
+                                  save_batch=True)
 
                 labels = torch.cat(labels)
                 test_preds = torch.cat(test_preds)
@@ -143,7 +170,9 @@ if __name__ == "__main__":
             submission_ensembled += softmax(sub, axis=1) / len(submission)
         test_data.iloc[:, 1:] = submission_ensembled
         pred_data = test_data
-        pred_data.to_csv(os.path.join(group_output_dir,f'pred_{group_id}.csv'), index=False)
+        pred_data.to_csv(os.path.join(group_output_dir,
+                                      f'pred_{group_id}.csv'),
+                         index=False)
         pred_datas.append(pred_data)
         try:
             generate_report(pred_data, gt_data, group_id, report_dir)
@@ -158,7 +187,7 @@ if __name__ == "__main__":
     #         avg_pred_data = pred_data
     #     else:
     #         avg_pred_data.iloc[:, 1:] = avg_pred_data.iloc[:, 1:] + pred_data.iloc[:, 1:]
-    
+
     # avg_pred_data.iloc[:, 1:] = avg_pred_data.iloc[:, 1:] / len(pred_datas)
     # # print(avg_pred_data.head(10))
     # # avg_pred_data.iloc[:, 1:].div(len(pred_datas))

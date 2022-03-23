@@ -448,11 +448,11 @@ if __name__ == "__main__":
             gradient_clip_val=hparams.gradient_clip_val
         )
         trainer.fit(model, datamodule=da)
-        try:
-              trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[test_dataloader])
-              valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
-        except Exception as e:
-            print('Proccessing wrong in testing.')
+        # try:
+        #       trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[test_dataloader])
+        #       valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
+        # except Exception as e:
+        #     print('Proccessing wrong in testing.')
 
         del trainer
         del model
