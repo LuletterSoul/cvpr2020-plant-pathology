@@ -155,7 +155,9 @@ if __name__ == "__main__":
                                   label,
                                   filenames,
                                   vis_dir,
-                                  save_batch=True)
+                                  save_batch=True,
+                                  mean=hparams.norm.mean,
+                                  std=hparams.norm.std)
 
                 labels = torch.cat(labels)
                 test_preds = torch.cat(test_preds)
