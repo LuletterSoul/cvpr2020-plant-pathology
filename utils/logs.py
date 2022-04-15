@@ -74,7 +74,7 @@ def seed_reproducer(seed=2020):
 def get_parser():
     parser = ArgumentParser()
     parser.add_argument('--config', type=str,
-                        default='config/base.yaml', help='config path')
+                        default='config/train_[original]_small_batch.yaml', help='config path')
     return parser
 
 

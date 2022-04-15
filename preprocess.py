@@ -9,8 +9,8 @@ import pandas as pd
 from dataset import generate_tensor_dataloaders, generate_transforms
 from tqdm import tqdm
 from utils import *
-input_dir = '/data/lxd/datasets/2022-03-02-Eggs'
-output_dir = '/data/lxd/datasets/2022-03-02-Eggs'
+input_dir = '/data/lxd/datasets/2022-04-15-Eggs'
+output_dir = '/data/lxd/datasets/2022-04-15-Eggs'
 # output_dir = '/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-PN0.0'
 os.makedirs(output_dir, exist_ok=True)
 label_map = {
@@ -38,6 +38,7 @@ def write_csv(csv_instance, class_dir, image_ids):
 
 
 def split():
+    seed_reproducer(2022)
     with open(os.path.join(output_dir, 'train_4_3.csv'), 'w',
             newline='') as train_file:
         with open(os.path.join(output_dir, 'test_4_1.csv'), 'w',
@@ -49,7 +50,7 @@ def split():
                 if os.path.isdir(class_path):
                     image_ids = [
                         os.path.join(class_dir, image_id)
-                        for image_id in os.listdir(class_path) if image_id.endswith('.bmp')
+                        for image_id in os.listdir(class_path) if image_id.endswith('.jpg')
                     ]
                     random.shuffle(image_ids)
                     train_image_ids = image_ids[:len(image_ids) // 4 * 3]
@@ -136,8 +137,10 @@ def random_positive_negative(input_dir, output_dir):
 def cal_overall_mean_and_std():
     seed_reproducer(2022)
     hparams = init_hparams()
-    train_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.training_set))
-    test_data = pd.read_csv(os.path.join(hparams.data_folder, hparams.test_set))
+    train_data_path = '/data/lxd/datasets/2022-03-02-Eggs/train_4_3.csv'
+    test_data_path = '/data/lxd/datasets/2022-03-02-Eggs/test_4_1.csv'
+    train_data = pd.read_csv(train_data_path)
+    test_data = pd.read_csv(test_data_path)
     data = pd.concat([train_data, test_data])
     # data = data.head(8)
     transforms = generate_transforms(hparams)
@@ -166,4 +169,5 @@ if __name__ == '__main__':
 
     # random_positive_negative(input_dir='/data/lxd/datasets/2022-03-02-Eggs', 
                             #  output_dir='/data/lxd/datasets/2022-03-15-EggCandingTest/2022-03-15-P_[0.92]_N_[0.08]')
-    cal_overall_mean_and_std()
+    # cal_overall_mean_and_std()
+    split()

@@ -12,6 +12,7 @@ train_batch_size: 12
 val_batch_size: 6
 anchor_batch_size: 6
 training_mode: ddp
+fold_i: 0
 num_workers: 8
 image_size: [600, 600]
 seed: 2022

@@ -9,6 +9,7 @@ lr: 0.001
 # training 
 train_transforms: non-trivial             
 train_batch_size: 12
+fold_i: 0
 val_batch_size: 6
 anchor_batch_size: 6
 training_mode: ddp
