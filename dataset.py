@@ -27,6 +27,8 @@ from albumentations import (
     Resize,
     ShiftScaleRotate,
     VerticalFlip,
+    LongestMaxSize,
+    PadIfNeeded
 )
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
@@ -34,6 +36,7 @@ from PIL import Image
 
 # User defined libraries
 from utils import *
+from torchvision.utils import save_image
 
 # for fast read data
 # from utils import NPY_FOLDER
@@ -152,7 +155,7 @@ class AnchorSet(OpticalCandlingDataset):
                                self.data['filename'].str.startswith(class_name)].head(sample_num) 
                               for class_name in class_names])
 
-def get_non_trivial_transforms(hparams):
+def a1_transforms(hparams):
     """use for the baseline model, we don't use any additional data augmentation.
 
     Args:
@@ -168,18 +171,10 @@ def get_non_trivial_transforms(hparams):
                     max_pixel_value=255.0,
                     p=1.0),
         ])
-    
 
-def generate_transforms(hparams):
-
-    if hparams.train_transforms == 'non-trivial':
-        train_transform = get_non_trivial_transforms(hparams)
-    else:
-        train_transform = Compose([
-            Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
-            # OneOf(
-                # [RandomBrightness(limit=0.1, p=1),
-                #  RandomContrast(limit=0.1, p=1)]),
+def a2_transforms(hparams):
+    return Compose([
+            # Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
             RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
             OneOf([
                 MotionBlur(blur_limit=(3,5)),
@@ -201,26 +196,44 @@ def generate_transforms(hparams):
                     max_pixel_value=255.0,
                     p=1.0),
         ])
+    
+def a3_transforms(hparams):
+   return Compose([
+            LongestMaxSize(max_size=hparams.image_size[0]),
+            RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
+            OneOf([
+                MotionBlur(blur_limit=(3,5)),
+                MedianBlur(blur_limit=(3,5)),
+                GaussianBlur(blur_limit=(3,5))
+            ], p=0.5),
+            # VerticalFlip(p=0.5),
+            # HorizontalFlip(p=0.5),
+            ShiftScaleRotate(
+                shift_limit=0.1,
+                scale_limit=0.1,
+                rotate_limit=20,
+                interpolation=cv2.INTER_LINEAR,
+                border_mode=cv2.BORDER_CONSTANT,
+                p=0.5,
+            ),
+            Normalize(mean=hparams.norm['mean'],
+                    std=hparams.norm['std'],
+                    max_pixel_value=255.0,
+                    p=1.0),
+            PadIfNeeded(min_height=hparams.image_size[0], min_width=hparams.image_size[1], border_mode=cv2.BORDER_CONSTANT)
+        ]) 
 
-    val_transform = get_non_trivial_transforms(hparams)
-    # val_transform = Compose([
-    #     Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
-    #     Normalize(mean=hparams.norm['mean'],
-    #               std= hparams.norm['std'],
-    #               max_pixel_value=255.0,
-    #               p=1.0),
-    # ])
+def generate_transforms(hparams):
+    if hparams.train_transforms == 'a1':
+        train_transform = a1_transforms(hparams)
+    elif hparams.train_transforms == 'a2':
+        train_transform = a2_transforms(hparams)
+    elif hparams.train_transforms == 'a3':
+        train_transform = a3_transforms(hparams)
 
+    val_transform = a1_transforms(hparams)
     tensor_transform = transforms.Compose([
         transforms.Resize(size=hparams.image_size),
-        #    ShiftScaleRotate(
-        #     shift_limit=0.2,
-        #     scale_limit=0.2,
-        #     rotate_limit=20,
-        #     interpolation=cv2.INTER_LINEAR,
-        #     border_mode=cv2.BORDER_REFLECT_101,
-        #     p=1,
-        # ),
         transforms.ToTensor()
     ])
 
@@ -311,13 +324,38 @@ def generate_tensor_dataloaders(hparams, test_data, transforms):
     )
     return tensor_dataloader
 
+def test_transform():
+    hparams = init_hparams()
+    hparams.image_size = [600, 600]
+    # hparams.norm.mean = [
+    # 0.4755111336708069,
+    # 0.15864244103431702,
+    # 0.09940344840288162
+    # ]
+    # hparams.norm.std= [
+    # 0.33696553111076355,
+    # 0.295562744140625,
+    # 0.2568116784095764]
+    # test_img = Image.open('/data/lxd/datasets/2022-04-15-Eggs/Weak/082409286_Egg1_(ok)_R_0_cam2.jpg')
+    hparams.norm.mean = [0, 0, 0]
+    hparams.norm.std= [1, 1, 1]
+    test_img = Image.open('/data/lxd/datasets/2022-04-15-Egg-Masks/Flower/egg_roi/082031737_Egg2_(ok)_R_0_cam2.jpg')
+    test_img = np.array(test_img)
+    test_tf = a3_transforms(hparams)
+    test_img = test_tf(image=test_img)["image"].transpose(2, 0, 1)
+    test_img = torch.from_numpy(test_img)
+    save_image(test_img, 'test.png')
 
 if __name__ == '__main__':
-    hparams = init_hparams()
-    # Make experiment reproducible
-    seed_reproducer(hparams.seed) 
-    header_names = ['filename'] + class_names 
-    test_data, _= load_test_data_with_header(None, hparams.data_folder, header_names=header_names)
-    transforms = generate_transforms(hparams.image_size)
-    anchor_dataloader = generate_anchor_dataloaders(hparams, test_data, transforms)
+    test_transform()
+    # hparams = init_hparams()
+    # # Make experiment reproducible
+    # seed_reproducer(hparams.seed) 
+    # header_names = ['filename'] + class_names 
+    # test_data, _= load_test_data_with_header(None, hparams.data_folder, header_names=header_names)
+    # transforms = generate_transforms(hparams.image_size)
+    # anchor_dataloader = generate_anchor_dataloaders(hparams, test_data, transforms)
+
+
+     
     

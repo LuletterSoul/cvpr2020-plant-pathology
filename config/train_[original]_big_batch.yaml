@@ -8,7 +8,7 @@ test_set : test_4_1.csv
 num_classes: 8
 lr: 0.001
 # training 
-train_transforms: non-trivial             
+train_transforms: a2
 train_batch_size: 48
 fold_i: 0
 val_batch_size: 96
