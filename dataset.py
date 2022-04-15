@@ -184,12 +184,12 @@ def a2_transforms(hparams):
             VerticalFlip(p=0.5),
             HorizontalFlip(p=0.5),
             ShiftScaleRotate(
-                shift_limit=0.2,
-                scale_limit=0.2,
+                shift_limit=0.1,
+                scale_limit=0.1,
                 rotate_limit=20,
                 interpolation=cv2.INTER_LINEAR,
                 border_mode=cv2.BORDER_REFLECT_101,
-                p=1,
+                p=0.5,
             ),
             Normalize(mean=hparams.norm['mean'],
                     std=hparams.norm['std'],
@@ -206,8 +206,8 @@ def a3_transforms(hparams):
                 MedianBlur(blur_limit=(3,5)),
                 GaussianBlur(blur_limit=(3,5))
             ], p=0.5),
-            # VerticalFlip(p=0.5),
-            # HorizontalFlip(p=0.5),
+            VerticalFlip(p=0.5),
+            HorizontalFlip(p=0.5),
             ShiftScaleRotate(
                 shift_limit=0.1,
                 scale_limit=0.1,
