@@ -415,6 +415,10 @@ def get_training_strategy(hparams):
         return DataParallelPlugin()
 
 
+def get_checkpoint_resume(hparams):
+    return hparams.resume_from_checkpoint if not hparams.debug else None
+
+
 def get_real_world_test_dataloaders(hparams, transforms):
     if 'test_real_world_set' not in hparams:
         return []
@@ -527,7 +531,7 @@ if __name__ == "__main__":
                 precision=hparams.precision,
                 num_sanity_val_steps=0,
                 profiler=False,
-                resume_from_checkpoint=hparams.resume_from_checkpoint,
+                resume_from_checkpoint=get_checkpoint_resume(hparams),
                 gradient_clip_val=hparams.gradient_clip_val)
             trainer.fit(model, datamodule=da)
             # try:
