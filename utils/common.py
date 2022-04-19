@@ -189,7 +189,7 @@ def get_roc_auc(labels, scores):
     val_roc_auc = 0
     try:
         if len(class_num) == 1:
-            val_roc_auc = 0
+            val_roc_auc = torch.tensor(0)
         else:
             # print(labels)
             val_roc_auc = roc_auc_score(labels.cpu().numpy(), scores.cpu().numpy())

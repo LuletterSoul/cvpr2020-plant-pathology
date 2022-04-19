@@ -6,7 +6,7 @@ import csv
 import random
 import cv2
 import pandas as pd
-from dataset import generate_tensor_dataloaders, generate_transforms
+from datasets.dataset import generate_tensor_dataloaders, generate_transforms
 from tqdm import tqdm
 from utils import *
 input_dir = '/data/lxd/datasets/2022-04-15-Eggs'

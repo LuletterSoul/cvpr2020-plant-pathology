@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # User defined libraries
-from dataset import OpticalCandlingDataset, generate_transforms, PlantDataset
+from datasets.dataset import OpticalCandlingDataset, generate_transforms, PlantDataset
 from train import CoolSystem
 from utils import init_hparams, init_logger, load_test_data, load_test_data_with_header, seed_reproducer, load_data
 import pandas as pd

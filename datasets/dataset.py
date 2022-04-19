@@ -13,23 +13,11 @@ import numpy as np
 import pandas as pd
 import torch
 import albumentations
-from albumentations import (
-    Compose,
-    GaussianBlur,
-    HorizontalFlip,
-    MedianBlur,
-    MotionBlur,
-    Normalize,
-    OneOf,
-    RandomBrightness,
-    RandomContrast,
-    RandomBrightnessContrast,
-    Resize,
-    ShiftScaleRotate,
-    VerticalFlip,
-    LongestMaxSize,
-    PadIfNeeded
-)
+from albumentations import (Compose, GaussianBlur, HorizontalFlip, MedianBlur,
+                            MotionBlur, Normalize, OneOf, RandomBrightness,
+                            RandomContrast, RandomBrightnessContrast, Resize,
+                            ShiftScaleRotate, VerticalFlip, LongestMaxSize,
+                            PadIfNeeded)
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
@@ -41,11 +29,11 @@ from torchvision.utils import save_image
 # for fast read data
 # from utils import NPY_FOLDER
 
-   
 
 class PlantDataset(Dataset):
     """ Do normal training
     """
+
     def __init__(self, data, soft_labels_filename=None, transforms=None):
         self.data = data
         self.transforms = transforms
@@ -92,6 +80,7 @@ class PlantDataset(Dataset):
 class OpticalCandlingDataset(Dataset):
     """ Do normal training
     """
+
     def __init__(self,
                  data_folder,
                  data,
@@ -106,15 +95,14 @@ class OpticalCandlingDataset(Dataset):
         else:
             self.soft_labels = pd.read_csv(soft_labels_filename)
 
-
     def __getitem__(self, index):
         start_time = time()
         # Read image
         # solution-1: read from raw image
-        filename = self.data.iloc[index,0]
+        filename = self.data.iloc[index, 0]
         path = os.path.join(self.data_folder, filename)
         # image = cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
-        image = Image.open(path).convert("RGB") 
+        image = Image.open(path).convert("RGB")
         # solution-2: read from npy file which can speed the data load time.
         # image = np.load(os.path.join(NPY_FO21LDER, "raw", self.data.iloc[index, 0] + ".npy"))
 
@@ -126,12 +114,14 @@ class OpticalCandlingDataset(Dataset):
         #     print(image.shape)
 
         # Do data augmentation
-        if self.transforms is not None and isinstance(self.transforms, albumentations.Compose) :
+        if self.transforms is not None and isinstance(self.transforms,
+                                                      albumentations.Compose):
             image = np.array(image)
             image = self.transforms(image=image)["image"].transpose(2, 0, 1)
-        elif self.transforms is not None and isinstance(self.transforms,transforms.Compose):
+        elif self.transforms is not None and isinstance(
+                self.transforms, transforms.Compose):
             image = self.transforms(image)
-        
+
         # Soft label
         if self.soft_labels is not None:
             label = torch.FloatTensor(
@@ -147,13 +137,22 @@ class OpticalCandlingDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
+
 class AnchorSet(OpticalCandlingDataset):
-    def __init__(self, data_folder, data, soft_labels_filename=None, transforms=None, sample_num = 10):
+
+    def __init__(self,
+                 data_folder,
+                 data,
+                 soft_labels_filename=None,
+                 transforms=None,
+                 sample_num=10):
         super().__init__(data_folder, data, soft_labels_filename, transforms)
         # filename = self.data.iloc[index,0]
-        self.data = pd.concat([self.data.loc[
-                               self.data['filename'].str.startswith(class_name)].head(sample_num) 
-                              for class_name in class_names])
+        self.data = pd.concat([
+            self.data.loc[self.data['filename'].str.startswith(
+                class_name)].head(sample_num) for class_name in class_names
+        ])
+
 
 def a1_transforms(hparams):
     """use for the baseline model, we don't use any additional data augmentation.
@@ -165,63 +164,69 @@ def a1_transforms(hparams):
         _type_: _description_
     """
     return Compose([
-            Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
-            Normalize(mean=hparams.norm['mean'],
-                    std= hparams.norm['std'],
-                    max_pixel_value=255.0,
-                    p=1.0),
-        ])
+        Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
+        Normalize(mean=hparams.norm['mean'],
+                  std=hparams.norm['std'],
+                  max_pixel_value=255.0,
+                  p=1.0),
+    ])
+
 
 def a2_transforms(hparams):
     return Compose([
-            # Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
-            RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
-            OneOf([
-                MotionBlur(blur_limit=(3,5)),
-                MedianBlur(blur_limit=(3,5)),
-                GaussianBlur(blur_limit=(3,5))
-            ], p=0.5),
-            VerticalFlip(p=0.5),
-            HorizontalFlip(p=0.5),
-            ShiftScaleRotate(
-                shift_limit=0.1,
-                scale_limit=0.1,
-                rotate_limit=20,
-                interpolation=cv2.INTER_LINEAR,
-                border_mode=cv2.BORDER_REFLECT_101,
-                p=0.5,
-            ),
-            Normalize(mean=hparams.norm['mean'],
-                    std=hparams.norm['std'],
-                    max_pixel_value=255.0,
-                    p=1.0),
-        ])
-    
+        RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
+        OneOf([
+            MotionBlur(blur_limit=(3, 5)),
+            MedianBlur(blur_limit=(3, 5)),
+            GaussianBlur(blur_limit=(3, 5))
+        ],
+              p=0.5),
+        VerticalFlip(p=0.5),
+        HorizontalFlip(p=0.5),
+        ShiftScaleRotate(
+            shift_limit=0.1,
+            scale_limit=0.1,
+            rotate_limit=20,
+            interpolation=cv2.INTER_LINEAR,
+            border_mode=cv2.BORDER_REFLECT_101,
+            p=0.5,
+        ),
+        Normalize(mean=hparams.norm['mean'],
+                  std=hparams.norm['std'],
+                  max_pixel_value=255.0,
+                  p=1.0),
+    ])
+
+
 def a3_transforms(hparams):
-   return Compose([
-            LongestMaxSize(max_size=hparams.image_size[0]),
-            RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
-            OneOf([
-                MotionBlur(blur_limit=(3,5)),
-                MedianBlur(blur_limit=(3,5)),
-                GaussianBlur(blur_limit=(3,5))
-            ], p=0.5),
-            VerticalFlip(p=0.5),
-            HorizontalFlip(p=0.5),
-            ShiftScaleRotate(
-                shift_limit=0.1,
-                scale_limit=0.1,
-                rotate_limit=20,
-                interpolation=cv2.INTER_LINEAR,
-                border_mode=cv2.BORDER_CONSTANT,
-                p=0.5,
-            ),
-            Normalize(mean=hparams.norm['mean'],
-                    std=hparams.norm['std'],
-                    max_pixel_value=255.0,
-                    p=1.0),
-            PadIfNeeded(min_height=hparams.image_size[0], min_width=hparams.image_size[1], border_mode=cv2.BORDER_CONSTANT)
-        ]) 
+    return Compose([
+        LongestMaxSize(max_size=hparams.image_size[0]),
+        RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
+        OneOf([
+            MotionBlur(blur_limit=(3, 5)),
+            MedianBlur(blur_limit=(3, 5)),
+            GaussianBlur(blur_limit=(3, 5))
+        ],
+              p=0.5),
+        VerticalFlip(p=0.5),
+        HorizontalFlip(p=0.5),
+        ShiftScaleRotate(
+            shift_limit=0.1,
+            scale_limit=0.1,
+            rotate_limit=20,
+            interpolation=cv2.INTER_LINEAR,
+            border_mode=cv2.BORDER_CONSTANT,
+            p=0.5,
+        ),
+        Normalize(mean=hparams.norm['mean'],
+                  std=hparams.norm['std'],
+                  max_pixel_value=255.0,
+                  p=1.0),
+        PadIfNeeded(min_height=hparams.image_size[0],
+                    min_width=hparams.image_size[1],
+                    border_mode=cv2.BORDER_CONSTANT)
+    ])
+
 
 def generate_transforms(hparams):
     if hparams.train_transforms == 'a1':
@@ -232,10 +237,9 @@ def generate_transforms(hparams):
         train_transform = a3_transforms(hparams)
 
     val_transform = a1_transforms(hparams)
-    tensor_transform = transforms.Compose([
-        transforms.Resize(size=hparams.image_size),
-        transforms.ToTensor()
-    ])
+    tensor_transform = transforms.Compose(
+        [transforms.Resize(size=hparams.image_size),
+         transforms.ToTensor()])
 
     return {
         "train_transforms": train_transform,
@@ -244,25 +248,13 @@ def generate_transforms(hparams):
     }
 
 
-def generate_dataloaders(hparams, train_data, val_data, transforms):
-    train_dataset = OpticalCandlingDataset(
-        data_folder=hparams.data_folder,
-        data=train_data,
-        transforms=transforms["train_transforms"],
-        soft_labels_filename=hparams.soft_labels_filename)
+def generate_val_dataloaders(hparams, val_data, transforms):
     val_dataset = OpticalCandlingDataset(
         data_folder=hparams.data_folder,
         data=val_data,
         transforms=transforms["val_transforms"],
         soft_labels_filename=hparams.soft_labels_filename)
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=hparams.train_batch_size,
-        shuffle=True,
-        num_workers=hparams.num_workers,
-        pin_memory=True,
-        drop_last=True,
-    )
+
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=hparams.val_batch_size,
@@ -271,7 +263,57 @@ def generate_dataloaders(hparams, train_data, val_data, transforms):
         pin_memory=True,
         drop_last=False,
     )
+    return val_dataloader
 
+
+def generate_train_dataloaders(hparams, val_data, transforms):
+    val_dataset = OpticalCandlingDataset(
+        data_folder=hparams.data_folder,
+        data=val_data,
+        transforms=transforms["val_transforms"],
+        soft_labels_filename=hparams.soft_labels_filename)
+
+    val_dataloader = DataLoader(
+        val_dataset,
+        batch_size=hparams.val_batch_size,
+        shuffle=False,
+        num_workers=hparams.num_workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+    return val_dataloader
+
+
+def generate_dataloaders(hparams, train_data, val_data, transforms):
+    # train_dataset = OpticalCandlingDataset(
+    #     data_folder=hparams.data_folder,
+    #     data=train_data,
+    #     transforms=transforms["train_transforms"],
+    #     soft_labels_filename=hparams.soft_labels_filename)
+    # val_dataset = OpticalCandlingDataset(
+    #     data_folder=hparams.data_folder,
+    #     data=val_data,
+    #     transforms=transforms["val_transforms"],
+    #     soft_labels_filename=hparams.soft_labels_filename)
+    # train_dataloader = DataLoader(
+    #     train_dataset,
+    #     batch_size=hparams.train_batch_size,
+    #     shuffle=True,
+    #     num_workers=hparams.num_workers,
+    #     pin_memory=True,
+    #     drop_last=True,
+    # )
+    # val_dataloader = DataLoader(
+    #     val_dataset,
+    #     batch_size=hparams.val_batch_size,
+    #     shuffle=False,
+    #     num_workers=hparams.num_workers,
+    #     pin_memory=True,
+    #     drop_last=False,
+    # )
+    train_dataloader = generate_train_dataloaders(hparams, train_data,
+                                                  transforms)
+    val_dataloader = generate_val_dataloaders(hparams, val_data, transforms)
     return train_dataloader, val_dataloader
 
 
@@ -291,13 +333,13 @@ def generate_test_dataloaders(hparams, test_data, transforms):
     )
     return test_dataloader
 
+
 def generate_anchor_dataloaders(hparams, test_data, transforms):
-    test_dataset = AnchorSet(
-        data_folder=hparams.data_folder,
-        data=test_data,
-        transforms=transforms["val_transforms"],
-        sample_num=hparams.sample_num,
-        soft_labels_filename=hparams.soft_labels_filename)
+    test_dataset = AnchorSet(data_folder=hparams.data_folder,
+                             data=test_data,
+                             transforms=transforms["val_transforms"],
+                             sample_num=hparams.sample_num,
+                             soft_labels_filename=hparams.soft_labels_filename)
     anchor_dataloader = DataLoader(
         test_dataset,
         batch_size=hparams.sample_num,
@@ -307,6 +349,7 @@ def generate_anchor_dataloaders(hparams, test_data, transforms):
         drop_last=False,
     )
     return anchor_dataloader
+
 
 def generate_tensor_dataloaders(hparams, test_data, transforms):
     test_dataset = OpticalCandlingDataset(
@@ -324,6 +367,7 @@ def generate_tensor_dataloaders(hparams, test_data, transforms):
     )
     return tensor_dataloader
 
+
 def test_transform():
     hparams = init_hparams()
     hparams.image_size = [600, 600]
@@ -338,24 +382,23 @@ def test_transform():
     # 0.2568116784095764]
     # test_img = Image.open('/data/lxd/datasets/2022-04-15-Eggs/Weak/082409286_Egg1_(ok)_R_0_cam2.jpg')
     hparams.norm.mean = [0, 0, 0]
-    hparams.norm.std= [1, 1, 1]
-    test_img = Image.open('/data/lxd/datasets/2022-04-15-Egg-Masks/Flower/egg_roi/082031737_Egg2_(ok)_R_0_cam2.jpg')
+    hparams.norm.std = [1, 1, 1]
+    test_img = Image.open(
+        '/data/lxd/datasets/2022-04-15-Egg-Masks/Flower/egg_roi/082031737_Egg2_(ok)_R_0_cam2.jpg'
+    )
     test_img = np.array(test_img)
     test_tf = a3_transforms(hparams)
     test_img = test_tf(image=test_img)["image"].transpose(2, 0, 1)
     test_img = torch.from_numpy(test_img)
     save_image(test_img, 'test.png')
 
+
 if __name__ == '__main__':
     test_transform()
     # hparams = init_hparams()
     # # Make experiment reproducible
-    # seed_reproducer(hparams.seed) 
-    # header_names = ['filename'] + class_names 
+    # seed_reproducer(hparams.seed)
+    # header_names = ['filename'] + class_names
     # test_data, _= load_test_data_with_header(None, hparams.data_folder, header_names=header_names)
     # transforms = generate_transforms(hparams.image_size)
     # anchor_dataloader = generate_anchor_dataloaders(hparams, test_data, transforms)
-
-
-     
-    
