@@ -44,5 +44,5 @@ norm:
     0.24394549429416656,
     0.21203480660915375
   ]
-resume_from_checkpoint: 
+resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220414-1751-batch-large-mixed-blood-vessel/checkpoints/fold=1-epoch=4-val_loss=0.3146-val_roc_auc=0.9850.ckpt
 checkpoints: 

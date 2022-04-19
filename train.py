@@ -520,16 +520,14 @@ if __name__ == "__main__":
                 min_epochs=hparams.min_epochs,
                 max_epochs=hparams.max_epochs,
                 # val_check_interval=1,
-                callbacks=[early_stop_callback, checkpoint_callback],
-                # early_stopping_callback=early_stop_callback,
-                # checkpoint_callback=checkpoint_callback,
-                # progress_bar_refresh_rate=0,
+                callbacks=[
+                    early_stop_callback, checkpoint_callback,
+                    other_checkpoint_callback
+                ],
                 precision=hparams.precision,
                 num_sanity_val_steps=0,
                 profiler=False,
                 resume_from_checkpoint=hparams.resume_from_checkpoint,
-                # weights_summary=None,
-                # use_dp=True,
                 gradient_clip_val=hparams.gradient_clip_val)
             trainer.fit(model, datamodule=da)
             # try:
@@ -537,7 +535,6 @@ if __name__ == "__main__":
             #       valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
             # except Exception as e:
             #     print('Proccessing wrong in testing.')
-
             del trainer
             del model
             del train_dataloader
