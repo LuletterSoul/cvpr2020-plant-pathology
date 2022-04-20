@@ -441,18 +441,14 @@ if __name__ == "__main__":
     seed_reproducer(2022)
 
     # Init Hyperparameters
-    hparams = init_hparams()
-
-    timestamp = ts.strftime("%Y%m%d-%H%M", ts.localtime())
-
-    output_dir = os.path.join(hparams.log_dir,
-                              f'{timestamp}-{hparams.exp_name}')
-
-    hparams.log_dir = output_dir
-
-    os.makedirs(hparams.log_dir, exist_ok=True)
-
-    backup_config(hparams.config, hparams.log_dir)
+    # hparams = init_hparams()
+    hparams = init_training_config()
+    # timestamp = ts.strftime("%Y%m%d-%H%M", ts.localtime())
+    # output_dir = os.path.join(hparams.log_dir,
+    #   f'{timestamp}-{hparams.exp_name}')
+    # hparams.log_dir = output_dir
+    # os.makedirs(hparams.log_dir, exist_ok=True)
+    # backup_config(hparams.config, hparams.log_dir)
 
     # init logger
     logger = init_logger("HEC", log_dir=hparams.log_dir)
@@ -474,9 +470,15 @@ if __name__ == "__main__":
         hparams, transforms)
     # Do cross validation
     valid_roc_auc_scores = []
+    current_fold_i = hparams.fold_i
     folds = KFold(n_splits=5, shuffle=True, random_state=hparams.seed)
     try:
         for fold_i, (train_index, val_index) in enumerate(folds.split(data)):
+            if fold_i < current_fold_i:
+                logger.info(
+                    f'Skipped fold {fold_i}, history fold start at {current_fold_i}'
+                )
+                continue
             hparams.fold_i = fold_i
             train_data = data.iloc[train_index, :].reset_index(drop=True)
             val_data = data.iloc[val_index, :].reset_index(drop=True)
@@ -535,13 +537,15 @@ if __name__ == "__main__":
                 profiler=False,
                 gradient_clip_val=hparams.gradient_clip_val)
             trainer.fit(model,
-                        ckpt_path=get_checkpoint_resume(hparams),
-                        datamodule=da)
-            # try:
-            #       trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[test_dataloader])
-            #       valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
-            # except Exception as e:
-            #     print('Proccessing wrong in testing.')
+                        datamodule=da,
+                        ckpt_path=get_checkpoint_resume(hparams))
+            try:
+                trainer.test(ckpt_path=checkpoint_callback.best_model_path,
+                             datamodule=da)
+                valid_roc_auc_scores.append(
+                    round(checkpoint_callback.best_model_score, 4))
+            except Exception as e:
+                print('Proccessing wrong in testing.')
             del trainer
             del model
             del train_dataloader
