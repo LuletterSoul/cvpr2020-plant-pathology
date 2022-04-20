@@ -501,7 +501,7 @@ if __name__ == "__main__":
                 mode="max",
                 filename=f"fold={fold_i}" +
                 "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}")
-            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"
+            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"
             other_checkpoint_callback = ModelCheckpoint(
                 dirpath=checkpoint_path,
                 monitor="other_roc_auc",
