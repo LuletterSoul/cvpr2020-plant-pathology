@@ -373,8 +373,8 @@ class CoolSystem(pl.LightningModule):
             other_infos = [
                 self.collect_val_info(output) for output in outputs[2:]
             ]
-            other_loss_mean = torch.stack(
-                [info.loss_mean for info in other_infos]).mean()
+            other_loss = torch.stack([info.loss_mean
+                                      for info in other_infos]).mean()
             other_roc_auc = np.array([info.roc_auc
                                       for info in other_infos]).mean()
 
@@ -388,7 +388,7 @@ class CoolSystem(pl.LightningModule):
                              f"lr : {self.scheduler.get_lr()[0]:.6f} | "
                              f"val_loss : {val_info.loss_mean:.4f} | "
                              f"val_roc_auc : {val_info.roc_auc:.4f} | "
-                             f"other_loss : {other_loss_mean:.4f} | "
+                             f"other_loss : {other_loss:.4f} | "
                              f"other_roc_auc : {other_roc_auc:.4f} | "
                              f"data_load_times : {self.data_load_times:.2f} | "
                              f"batch_run_times : {self.batch_run_times:.2f}")
@@ -396,12 +396,12 @@ class CoolSystem(pl.LightningModule):
         self.log('val_loss', val_info.loss_mean)
         self.log('val_roc_auc', val_info.roc_auc)
         self.log('other_roc_auc', other_roc_auc)
-        self.log('other_loss', other_loss_mean)
+        self.log('other_loss', other_loss)
         return {
             "val_loss": val_info.loss_mean,
             "val_roc_auc": val_info.roc_auc,
             "other_roc_auc": other_roc_auc,
-            "other_loss": other_loss_mean
+            "other_loss": other_loss
         }
 
 
@@ -429,7 +429,7 @@ def get_real_world_test_dataloaders(hparams, transforms):
         and filename.endswith('.csv')
     ]
     real_world_test_dataloaders = []
-    for filepath in test_paths:
+    for filepath in test_paths[:hparams.test_real_world_num]:
         test_data = pd.read_csv(filepath)
         real_world_test_dataloaders.append(
             generate_val_dataloaders(hparams, test_data, transforms))
@@ -544,7 +544,6 @@ if __name__ == "__main__":
             del train_dataloader
             del val_dataloader
             torch.cuda.empty_cache()
-            gc.collect()
         logger.info(valid_roc_auc_scores)
     except Exception as e:
         raise e
