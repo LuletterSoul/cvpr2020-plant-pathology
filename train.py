@@ -416,7 +416,13 @@ def get_training_strategy(hparams):
 
 
 def get_checkpoint_resume(hparams):
-    return hparams.resume_from_checkpoint if not hparams.debug else None
+    resume_from_checkpoint = hparams.resume_from_checkpoint
+    if not hparams.debug:
+        if hparams.fold_i in resume_from_checkpoint:
+            return resume_from_checkpoint[hparams.fold_i]
+        else:
+            return None
+    return None
 
 
 def get_real_world_test_dataloaders(hparams, transforms):
@@ -474,11 +480,11 @@ if __name__ == "__main__":
     folds = KFold(n_splits=5, shuffle=True, random_state=hparams.seed)
     try:
         for fold_i, (train_index, val_index) in enumerate(folds.split(data)):
-            if fold_i < current_fold_i:
-                logger.info(
-                    f'Skipped fold {fold_i}, history fold start at {current_fold_i}'
-                )
-                continue
+            # if fold_i < current_fold_i:
+            #     logger.info(
+            #         f'Skipped fold {fold_i}, history fold start at {current_fold_i}'
+            #     )
+            #     continue
             hparams.fold_i = fold_i
             train_data = data.iloc[train_index, :].reset_index(drop=True)
             val_data = data.iloc[val_index, :].reset_index(drop=True)
@@ -489,7 +495,7 @@ if __name__ == "__main__":
                                ] + real_world_test_dataloaders
 
             da = DataModule(hparams, train_dataloader, val_dataloaders,
-                            anchor_dataloader)
+                            test_dataloader)
             # Define callbacks
             checkpoint_path = os.path.join(hparams.log_dir, 'checkpoints')
             # os.makedirs(checkpoint_path, exist_ok=True)
