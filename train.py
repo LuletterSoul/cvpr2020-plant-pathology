@@ -494,14 +494,16 @@ if __name__ == "__main__":
             checkpoint_callback = ModelCheckpoint(
                 dirpath=checkpoint_path,
                 monitor="val_roc_auc",
-                save_top_k=1,
+                save_top_k=hparams.save_top_k,
+                save_last=True,
                 mode="max",
                 filename=f"fold={fold_i}" +
                 "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}")
+            checkpoint_callback.CHECKPOINT_NAME_LAST = "latest-fold={fold_i}-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"
             other_checkpoint_callback = ModelCheckpoint(
                 dirpath=checkpoint_path,
                 monitor="other_roc_auc",
-                save_top_k=1,
+                save_top_k=2,
                 mode="max",
                 filename=f"fold={fold_i}" +
                 "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_roc_auc:.4f}"
@@ -531,9 +533,10 @@ if __name__ == "__main__":
                 precision=hparams.precision,
                 num_sanity_val_steps=0,
                 profiler=False,
-                resume_from_checkpoint=get_checkpoint_resume(hparams),
                 gradient_clip_val=hparams.gradient_clip_val)
-            trainer.fit(model, datamodule=da)
+            trainer.fit(model,
+                        ckpt_path=get_checkpoint_resume(hparams),
+                        datamodule=da)
             # try:
             #       trainer.test(ckpt_path=checkpoint_callback.best_model_path, test_dataloaders=[test_dataloader])
             #       valid_roc_auc_scores.append(round(checkpoint_callback.best_model_score, 4))
