@@ -275,27 +275,27 @@ def generate_val_dataloaders(hparams, val_data, transforms):
         shuffle=False,
         num_workers=hparams.num_workers,
         pin_memory=True,
-        drop_last=False,
+        drop_last=True,
     )
     return val_dataloader
 
 
-def generate_train_dataloaders(hparams, val_data, transforms):
+def generate_train_dataloaders(hparams, data, transforms):
     val_dataset = OpticalCandlingDataset(
         data_folder=hparams.data_folder,
-        data=val_data,
-        transforms=transforms["val_transforms"],
+        data=data,
+        transforms=transforms["train_transforms"],
         soft_labels_filename=hparams.soft_labels_filename)
 
-    val_dataloader = DataLoader(
+    dataloader = DataLoader(
         val_dataset,
-        batch_size=hparams.val_batch_size,
+        batch_size=hparams.train_batch_size,
         shuffle=False,
         num_workers=hparams.num_workers,
         pin_memory=True,
-        drop_last=False,
+        drop_last=True,
     )
-    return val_dataloader
+    return dataloader
 
 
 def generate_dataloaders(hparams, train_data, val_data, transforms):

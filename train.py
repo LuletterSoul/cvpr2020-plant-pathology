@@ -7,8 +7,10 @@ import os
 import gc
 from pydoc import classname
 from time import time
+import traceback
 import numpy as np
 import time as ts
+from pandas import DataFrame
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from torchcam.methods.activation import CAM
@@ -30,6 +32,7 @@ from PIL import Image
 from pytorch_lightning.plugins import *
 from utils import *
 import csv
+from test_from_csv import generate_report
 
 
 class DataModule(pl.LightningDataModule):
@@ -219,12 +222,17 @@ class CoolSystem(pl.LightningModule):
 
         # filenames = np.concatenate([output["filenames"] for output in outputs])
         # images = torch.cat([output["images"] for output in outputs]).cpu()
-        scores_all = torch.cat([output["scores"] for output in outputs]).cpu()
+        scores_all = torch.cat([output["scores"]
+                                for output in outputs]).cpu().numpy()
+        scores_all = torch.softmax(scores_all, dim=1)
         labels_all = torch.round(
-            torch.cat([output["labels"] for output in outputs]).cpu())
+            torch.cat([output["labels"] for output in outputs])).cpu().numpy()
         filenames = np.concatenate([output["filenames"] for output in outputs])
-        self.save_false_positive(scores_all, labels_all, filenames,
-                                 self.test_output_dir)
+        self.save_false_positive(scores_all,
+                                 labels_all,
+                                 filenames,
+                                 self.test_output_dir,
+                                 ger_report=True)
         test_roc_auc = get_roc_auc(labels_all, scores_all)
         self.logger_kun.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
                              f"lr : {self.scheduler.get_lr()[0]:.6f} | "
@@ -232,6 +240,11 @@ class CoolSystem(pl.LightningModule):
                              f"test_roc_auc : {test_roc_auc:.4f} | "
                              f"data_load_times : {self.data_load_times:.2f} | "
                              f"batch_run_times : {self.batch_run_times:.2f}")
+        # score_df = DataFrame(scores_all)
+        # filename_df = DataFrame(filenames)
+        # pred_df: DataFrame = pd.concat([filename_df, score_df], axis=1)
+        # pred_df = DataFrame(pred_df.values(), columns=header_names)
+        # pred_df.to_csv(f'{self.hparams}')
         self.log('test_loss', test_loss_mean)
         self.log('test_roc_auc', test_roc_auc)
         return {"test_loss": test_loss_mean, "test_roc_auc": test_roc_auc}
@@ -289,8 +302,12 @@ class CoolSystem(pl.LightningModule):
                           ]).to(data_load_time.device),
         }
 
-    def save_false_positive(self, scores_all, labels_all, filenames,
-                            output_dir):
+    def save_false_positive(self,
+                            scores_all,
+                            labels_all,
+                            filenames,
+                            output_dir,
+                            ger_report=False):
         """Save false negative list into CSV file.
         Args:
             scores_all (_type_): _description_
@@ -306,8 +323,8 @@ class CoolSystem(pl.LightningModule):
             fp_labels, dim=1).detach().cpu().numpy()]  # label name [n, 1]
         fp_pred_names = np.array(class_names)[torch.argmax(
             fp_scores, dim=1).detach().cpu().numpy()]  # label name [n, 1]
-        save_path = os.path.join(
-            output_dir, f'{self.hparams.fold_i}-{self.current_epoch}-fp.csv')
+        prefix = {self.hparams.fold_i} - {self.current_epoch}
+        save_path = os.path.join(output_dir, f'{prefix}-fp.csv')
         df = pd.DataFrame({
             'filename': fp_filenames,
             'label': fp_label_names,
@@ -316,7 +333,25 @@ class CoolSystem(pl.LightningModule):
         pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
                             columns=class_names)
         fp_df = pd.concat([df, pred], axis=1)
-        fp_df.to_csv(save_path, index=True)
+        fp_df.to_csv(save_path, index=False)
+        if ger_report:
+            pred_save_path = os.path.join(output_dir, f'{prefix}-pred.csv')
+            scores = torch.softmax(scores_all, dim=1)
+            file_name_df = pd.DataFrame({
+                'filename': filenames,
+            })
+            score_df = pd.DataFrame(scores.detach().cpu().numpy(),
+                                    columns=class_names)
+            gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
+                                 columns=class_names)
+            pred_df = pd.concat([file_name_df, score_df], axis=1)
+            gt_df = pd.concat([file_name_df, gt_df], axis=1)
+            pred_df.to_csv(pred_save_path, index=False)
+            try:
+                generate_report(pred_df, gt_df, prefix, output_dir)
+            except Exception as e:
+                traceback.print_exc()
+                print(f'Error while handling report {prefix}')
 
     def cat_image_in_ddp(self):
         """In ddp mode, the each intermidiate output are saved by different processes. This function collect them and cat 
