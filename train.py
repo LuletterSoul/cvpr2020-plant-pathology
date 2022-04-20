@@ -185,7 +185,7 @@ class CoolSystem(pl.LightningModule):
                           filenames,
                           os.path.join(self.vis_test_output,
                                        str(self.current_epoch)),
-                          save_batch=True,
+                          save_batch=False,
                           save_per_image=False,
                           mean=self.hparams.norm['mean'],
                           std=self.hparams.norm['std'])
@@ -499,7 +499,7 @@ if __name__ == "__main__":
                 mode="max",
                 filename=f"fold={fold_i}" +
                 "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}")
-            checkpoint_callback.CHECKPOINT_NAME_LAST = "latest-fold={fold_i}-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"
+            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"
             other_checkpoint_callback = ModelCheckpoint(
                 dirpath=checkpoint_path,
                 monitor="other_roc_auc",
