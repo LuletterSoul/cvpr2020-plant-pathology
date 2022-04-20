@@ -228,15 +228,29 @@ def a3_transforms(hparams):
     ])
 
 
+def a4_transforms(hparams):
+    return Compose([
+        LongestMaxSize(max_size=hparams.image_size[0]),
+        Normalize(mean=hparams.norm['mean'],
+                  std=hparams.norm['std'],
+                  max_pixel_value=255.0,
+                  p=1.0),
+        PadIfNeeded(min_height=hparams.image_size[0],
+                    min_width=hparams.image_size[1],
+                    border_mode=cv2.BORDER_CONSTANT)
+    ])
+
+
 def generate_transforms(hparams):
     if hparams.train_transforms == 'a1':
         train_transform = a1_transforms(hparams)
+        val_transform = a1_transforms(hparams)
     elif hparams.train_transforms == 'a2':
         train_transform = a2_transforms(hparams)
+        val_transform = a1_transforms(hparams)
     elif hparams.train_transforms == 'a3':
         train_transform = a3_transforms(hparams)
-
-    val_transform = a1_transforms(hparams)
+        val_transform = a4_transforms(hparams)
     tensor_transform = transforms.Compose(
         [transforms.Resize(size=hparams.image_size),
          transforms.ToTensor()])

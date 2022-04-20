@@ -507,7 +507,7 @@ if __name__ == "__main__":
                 "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_roc_auc:.4f}"
             )
             early_stop_callback = EarlyStopping(monitor="val_loss",
-                                                patience=10,
+                                                patience=20,
                                                 mode="max",
                                                 verbose=True)
 
