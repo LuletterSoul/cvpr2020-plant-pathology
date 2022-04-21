@@ -33,6 +33,7 @@ from pytorch_lightning.plugins import *
 from utils import *
 import csv
 from test_from_csv import generate_report
+from pytorch_lightning.loggers import TensorBoardLogger
 
 
 class DataModule(pl.LightningDataModule):
@@ -76,7 +77,7 @@ class CoolSystem(pl.LightningModule):
         self.num_classes = hparams.num_classes
         self.model = se_resnext50_32x4d(num_classes=self.num_classes)
         self.criterion = CrossEntropyLossOneHot()
-        self.logger_kun = init_logger('HEC', hparams.log_dir)
+        self.HEC_LOGGER = init_logger('HEC', hparams.log_dir)
 
         self.test_output_dir = os.path.join(hparams.log_dir,
                                             f'fold-{hparams.fold_i}', 'test')
@@ -142,7 +143,7 @@ class CoolSystem(pl.LightningModule):
 
         scores = self(images)
         loss = self.criterion(scores, labels)
-        # self.logger_kun.info(f"loss : {loss.item()}")
+        # self.HEC_LOGGER_kun.info(f"loss : {loss.item()}")
         # ! can only return scalar tensor in training_step
         # must return key -> loss
         # optional return key -> progress_bar optional (MUST ALL BE TENSORS)
@@ -168,7 +169,7 @@ class CoolSystem(pl.LightningModule):
         self.batch_run_times = torch.stack(
             [output["batch_run_time"] for output in outputs]).sum()
 
-        # self.logger_kun.info(self.current_epoch)
+        # self.HEC_LOGGER_kun.info(self.current_epoch)
         if self.current_epoch + 1 < (self.trainer.max_epochs - 4):
             self.scheduler = warm_restart(self.scheduler, T_mult=2)
 
@@ -182,7 +183,7 @@ class CoolSystem(pl.LightningModule):
     #         self.zero_grad()
     #         images, labels, data_load_time, filenames = batch
     #         images.requires_grad = True
-    #         # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+    #         # self.HEC_LOGGER_kun.info(f'{dataloader_idx}: {images.size()}')
     #         data_load_time = torch.sum(data_load_time)
     #         scores = self(images)
     #         visualization(batch_idx,
@@ -219,7 +220,7 @@ class CoolSystem(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         step_start_time = time()
         images, labels, data_load_time, filenames = batch
-        # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+        # self.HEC_LOGGER_kun.info(f'{dataloader_idx}: {images.size()}')
         data_load_time = torch.sum(data_load_time)
         scores = self(images)
         loss = self.criterion(scores, labels)
@@ -250,29 +251,23 @@ class CoolSystem(pl.LightningModule):
 
         # filenames = np.concatenate([output["filenames"] for output in outputs])
         # images = torch.cat([output["images"] for output in outputs]).cpu()
-        scores_all = torch.cat([output["scores"]
-                                for output in outputs]).cpu().numpy()
+        scores_all = torch.cat([output["scores"] for output in outputs])
         scores_all = torch.softmax(scores_all, dim=1)
         labels_all = torch.round(
-            torch.cat([output["labels"] for output in outputs])).cpu().numpy()
+            torch.cat([output["labels"] for output in outputs]))
         filenames = np.concatenate([output["filenames"] for output in outputs])
-        self.save_false_positive(scores_all,
-                                 labels_all,
-                                 filenames,
-                                 self.test_output_dir,
-                                 ger_report=True)
+        self.post_report(scores_all,
+                         labels_all,
+                         filenames,
+                         self.test_output_dir,
+                         ger_report=True)
         test_roc_auc = get_roc_auc(labels_all, scores_all)
-        self.logger_kun.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
+        self.HEC_LOGGER.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
                              f"lr : {self.scheduler.get_lr()[0]:.6f} | "
                              f"test_loss : {test_loss_mean:.4f} | "
                              f"test_roc_auc : {test_roc_auc:.4f} | "
                              f"data_load_times : {self.data_load_times:.2f} | "
                              f"batch_run_times : {self.batch_run_times:.2f}")
-        # score_df = DataFrame(scores_all)
-        # filename_df = DataFrame(filenames)
-        # pred_df: DataFrame = pd.concat([filename_df, score_df], axis=1)
-        # pred_df = DataFrame(pred_df.values(), columns=header_names)
-        # pred_df.to_csv(f'{self.hparams}')
         self.log('test_loss', test_loss_mean)
         self.log('test_roc_auc', test_roc_auc)
         return {"test_loss": test_loss_mean, "test_roc_auc": test_roc_auc}
@@ -289,7 +284,7 @@ class CoolSystem(pl.LightningModule):
                 self.zero_grad()
                 images, labels, data_load_time, filenames = batch
                 images.requires_grad = True
-                # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+                # self.HEC_LOGGER_kun.info(f'{dataloader_idx}: {images.size()}')
                 data_load_time = torch.sum(data_load_time)
                 scores = self(images)
                 visualization(batch_idx,
@@ -308,7 +303,7 @@ class CoolSystem(pl.LightningModule):
             loss = self.criterion(scores, labels)
         else:
             images, labels, data_load_time, filenames = batch
-            # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+            # self.HEC_LOGGER_kun.info(f'{dataloader_idx}: {images.size()}')
             data_load_time = torch.sum(data_load_time)
             scores = self(images)
             loss = self.criterion(scores, labels)
@@ -330,19 +325,9 @@ class CoolSystem(pl.LightningModule):
                           ]).to(data_load_time.device),
         }
 
-    def save_false_positive(self,
-                            scores_all,
-                            labels_all,
-                            filenames,
-                            output_dir,
-                            ger_report=False):
-        """Save false negative list into CSV file.
-        Args:
-            scores_all (_type_): _description_
-            labels_all (_type_): _description_
-            filenames (_type_): _description_
-            output_dir (_type_): _description_
-        """
+    def save_false_positive(self, scores_all, labels_all, filenames,
+                            output_dir):
+        prefix = f'{self.hparams.fold_i}-{self.current_epoch}'
         fp_indexes = select_fn_indexes(scores_all, labels_all)
         fp_filenames = filenames[fp_indexes]
         fp_scores = torch.softmax(scores_all[fp_indexes], dim=1)
@@ -351,35 +336,52 @@ class CoolSystem(pl.LightningModule):
             fp_labels, dim=1).detach().cpu().numpy()]  # label name [n, 1]
         fp_pred_names = np.array(class_names)[torch.argmax(
             fp_scores, dim=1).detach().cpu().numpy()]  # label name [n, 1]
-        prefix = {self.hparams.fold_i} - {self.current_epoch}
         save_path = os.path.join(output_dir, f'{prefix}-fp.csv')
         df = pd.DataFrame({
             'filename': fp_filenames,
             'label': fp_label_names,
             'pred': fp_pred_names
         })
-        pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
-                            columns=class_names)
-        fp_df = pd.concat([df, pred], axis=1)
+        fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
+                               columns=class_names)
+        fp_df = pd.concat([df, fp_pred], axis=1)
         fp_df.to_csv(save_path, index=False)
+
+    def generate_classification_report(self, scores_all, labels_all, filenames,
+                                       output_dir):
+        prefix = f'{self.hparams.fold_i}-{self.current_epoch}'
+        pred_save_path = os.path.join(output_dir, f'{prefix}-pred.csv')
+        scores = torch.softmax(scores_all, dim=1)
+        file_name_df = pd.DataFrame({
+            'filename': filenames,
+        })
+        score_df = pd.DataFrame(scores.detach().cpu().numpy(),
+                                columns=class_names)
+        gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
+                             columns=class_names)
+        pred_df = pd.concat([file_name_df, score_df], axis=1)
+        gt_df = pd.concat([file_name_df, gt_df], axis=1)
+        pred_df.to_csv(pred_save_path, index=False)
+        generate_report(pred_df, gt_df, prefix, output_dir)
+
+    def post_report(self,
+                    scores_all,
+                    labels_all,
+                    filenames,
+                    output_dir,
+                    ger_report=False):
+        """ postprocessing classification results, producing classification report or 
+            saving false positive to the csv files.
+        Args:
+            scores_all (_type_): _description_
+            labels_all (_type_): _description_
+            filenames (_type_): _description_
+            output_dir (_type_): _description_
+        """
+        self.save_false_positive(scores_all, labels_all, filenames, output_dir)
         if ger_report:
-            pred_save_path = os.path.join(output_dir, f'{prefix}-pred.csv')
-            scores = torch.softmax(scores_all, dim=1)
-            file_name_df = pd.DataFrame({
-                'filename': filenames,
-            })
-            score_df = pd.DataFrame(scores.detach().cpu().numpy(),
-                                    columns=class_names)
-            gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
-                                 columns=class_names)
-            pred_df = pd.concat([file_name_df, score_df], axis=1)
-            gt_df = pd.concat([file_name_df, gt_df], axis=1)
-            pred_df.to_csv(pred_save_path, index=False)
-            try:
-                generate_report(pred_df, gt_df, prefix, output_dir)
-            except Exception as e:
-                traceback.print_exc()
-                print(f'Error while handling report {prefix}')
+            self.generate_classification_report(scores_all, labels_all,
+                                                filenames, output_dir)
 
     def cat_image_in_ddp(self):
         """In ddp mode, the each intermidiate output are saved by different processes. This function collect them and cat 
@@ -443,11 +445,11 @@ class CoolSystem(pl.LightningModule):
 
         filenames = np.concatenate(
             [output["filenames"] for output in outputs[1]])
-        self.save_false_positive(val_info.scores, val_info.labels, filenames,
-                                 self.val_output_dir)
+        self.post_report(val_info.scores, val_info.labels, filenames,
+                         self.val_output_dir)
 
         # terminal logs
-        self.logger_kun.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
+        self.HEC_LOGGER.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
                              f"lr : {self.scheduler.get_lr()[0]:.6f} | "
                              f"val_loss : {val_info.loss_mean:.4f} | "
                              f"val_roc_auc : {val_info.roc_auc:.4f} | "
@@ -510,17 +512,14 @@ if __name__ == "__main__":
     seed_reproducer(2022)
 
     # Init Hyperparameters
-    # hparams = init_hparams()
     hparams = init_training_config()
     # init logger
     logger = init_logger("HEC", log_dir=hparams.log_dir)
+    tf_logger = TensorBoardLogger(os.path.join(hparams.log_dir))
 
     # Do cross validation
     valid_roc_auc_scores = []
-    current_fold_i = hparams.fold_i
-    # folds = KFold(n_splits=5, shuffle=True, random_state=hparams.seed)
     try:
-        # for fold_i, (train_index, val_index) in enumerate(folds.split(data)):
         for fold_i in range(5):
             hparams.fold_i = fold_i
             da = ProjectDataModule(hparams)
@@ -553,8 +552,8 @@ if __name__ == "__main__":
             model = CoolSystem(hparams)
             if hparams.debug:
                 print(model)
-            # model.load_state_dict(torch.load(hparams.resume_from_checkpoint, map_location="cuda")["state_dict"])
             trainer = pl.Trainer(
+                logger=tf_logger,
                 replace_sampler_ddp=False,
                 fast_dev_run=hparams.debug,
                 strategy=get_training_strategy(hparams),
@@ -580,14 +579,11 @@ if __name__ == "__main__":
                 valid_roc_auc_scores.append(
                     round(checkpoint_callback.best_model_score, 4))
             except Exception as e:
+                traceback.print_exc()
                 print('Proccessing wrong in testing.')
-            # del trainer
-            # del model
-            # del train_dataloader
-            # del val_dataloader
-            # torch.cuda.empty_cache()
         logger.info(valid_roc_auc_scores)
     except Exception as e:
+        traceback.print_exc()
         raise e
     finally:
         if hparams.debug and hparams.clean_debug:
