@@ -6,31 +6,31 @@ data_folder: /data/lxd/datasets/2022-04-18-Egg-Masks
 training_set: train.csv
 test_set : test.csv
 # these test set are sampled by the real-world distribution
-test_real_world_set: seed
+test_real_world_set: 
 test_real_world_num: 1
 num_classes: 8
 lr: 0.001
 # training 
 train_transforms: a3
-train_batch_size: 6
+train_batch_size: 12
 fold_i: 0
-val_batch_size: 12
+val_batch_size: 24
 anchor_batch_size: 6
 save_top_k: 6
 training_mode: ddp
-num_workers: 4
+num_workers: 8
 image_size: [600, 600]
 seed: 2022
 min_epochs: 20
 max_epochs: 70
 patience: 20
-gpus: [0,1]
+gpus: [1, 2, 3]
 precision: 16
 gradient_clip_val: 0
 soft_labels_filename: ""
 log_dir: logs_submit
 sample_num: 6
-debug: false
+debug: true
 clean_debug: true
 # normalization:
 #   mean: [0.4914, 0.4822, 0.4465]
@@ -45,4 +45,5 @@ norm:
 # resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220414-1751-batch-large-mixed-blood-vessel/checkpoints/fold=1-epoch=4-val_loss=0.3146-val_roc_auc=0.9850.ckpt
 # resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220420-1307-roi/checkpoints/fold=1-epoch=8-val_loss=0.3057-val_roc_auc=0.9842.ckpt
 resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220420-1307-roi/checkpoints
+# resume_from_checkpoint: 
 checkpoints: 

@@ -18,7 +18,7 @@ from torchvision.transforms.functional import to_tensor
 # Third party libraries
 import torch
 from torchcam.methods.gradient import SmoothGradCAMpp
-from datasets.dataset import generate_anchor_dataloaders, generate_test_dataloaders, generate_transforms, generate_dataloaders, generate_val_dataloaders
+from datasets.dataset import generate_anchor_dataloaders, generate_test_dataloaders, generate_transforms, generate_dataloaders, generate_val_dataloaders, ProjectDataModule
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold
 
@@ -119,6 +119,11 @@ class CoolSystem(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
+    def on_train_start(self) -> None:
+        self.log('val_loss', float('inf'))
+        self.log('val_roc_auc', 0)
+        return super().on_train_start()
+
     def configure_optimizers(self):
         self.optimizer = torch.optim.Adam(self.parameters(),
                                           lr=self.hparams.lr,
@@ -169,32 +174,55 @@ class CoolSystem(pl.LightningModule):
 
         # return {"train_loss": train_loss_mean}
 
+    # def test_step(self, batch, batch_idx):
+    #     step_start_time = time()
+    #     with torch.enable_grad():
+    #         # self.unfreeze()
+    #         self.eval()
+    #         self.zero_grad()
+    #         images, labels, data_load_time, filenames = batch
+    #         images.requires_grad = True
+    #         # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+    #         data_load_time = torch.sum(data_load_time)
+    #         scores = self(images)
+    #         visualization(batch_idx,
+    #                       self.cam_extractors,
+    #                       images,
+    #                       scores,
+    #                       labels,
+    #                       filenames,
+    #                       os.path.join(self.vis_test_output,
+    #                                    str(self.current_epoch)),
+    #                       save_batch=False,
+    #                       save_per_image=False,
+    #                       mean=self.hparams.norm['mean'],
+    #                       std=self.hparams.norm['std'])
+    #         loss = self.criterion(scores, labels)
+    #         # self.freeze()
+    #     # must return key -> val_loss
+    #     return {
+    #         "filenames":
+    #         np.array(filenames),
+    #         "test_loss":
+    #         loss.detach(),
+    #         "scores":
+    #         scores.detach(),
+    #         "labels":
+    #         labels.detach(),
+    #         "data_load_time":
+    #         data_load_time,
+    #         "batch_run_time":
+    #         torch.Tensor([time() - step_start_time + data_load_time
+    #                       ]).to(data_load_time.device),
+    #     }
+
     def test_step(self, batch, batch_idx):
         step_start_time = time()
-        with torch.enable_grad():
-            # self.unfreeze()
-            self.eval()
-            self.zero_grad()
-            images, labels, data_load_time, filenames = batch
-            images.requires_grad = True
-            # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
-            data_load_time = torch.sum(data_load_time)
-            scores = self(images)
-            visualization(batch_idx,
-                          self.cam_extractors,
-                          images,
-                          scores,
-                          labels,
-                          filenames,
-                          os.path.join(self.vis_test_output,
-                                       str(self.current_epoch)),
-                          save_batch=False,
-                          save_per_image=False,
-                          mean=self.hparams.norm['mean'],
-                          std=self.hparams.norm['std'])
-            loss = self.criterion(scores, labels)
-            # self.freeze()
-        # must return key -> val_loss
+        images, labels, data_load_time, filenames = batch
+        # self.logger_kun.info(f'{dataloader_idx}: {images.size()}')
+        data_load_time = torch.sum(data_load_time)
+        scores = self(images)
+        loss = self.criterion(scores, labels)
         return {
             "filenames":
             np.array(filenames),
@@ -461,7 +489,7 @@ def get_checkpoint_resume(hparams):
 
 
 def get_real_world_test_dataloaders(hparams, transforms):
-    if 'test_real_world_set' not in hparams:
+    if 'test_real_world_set' not in hparams or hparams.test_real_world_set is None:
         return []
     test_paths = [
         os.path.join(hparams.data_folder, filename)
@@ -484,53 +512,18 @@ if __name__ == "__main__":
     # Init Hyperparameters
     # hparams = init_hparams()
     hparams = init_training_config()
-    # timestamp = ts.strftime("%Y%m%d-%H%M", ts.localtime())
-    # output_dir = os.path.join(hparams.log_dir,
-    #   f'{timestamp}-{hparams.exp_name}')
-    # hparams.log_dir = output_dir
-    # os.makedirs(hparams.log_dir, exist_ok=True)
-    # backup_config(hparams.config, hparams.log_dir)
-
     # init logger
     logger = init_logger("HEC", log_dir=hparams.log_dir)
 
-    # Load data
-    data = pd.read_csv(os.path.join(hparams.data_folder, hparams.training_set))
-    header_names = ['filename'] + class_names
-    test_data = pd.read_csv(os.path.join(hparams.data_folder,
-                                         hparams.test_set))
-
-    transforms = generate_transforms(hparams)
-
-    test_dataloader = generate_test_dataloaders(hparams, test_data, transforms)
-
-    anchor_dataloader = generate_anchor_dataloaders(hparams, test_data,
-                                                    transforms)
-
-    real_world_test_dataloaders = get_real_world_test_dataloaders(
-        hparams, transforms)
     # Do cross validation
     valid_roc_auc_scores = []
     current_fold_i = hparams.fold_i
-    folds = KFold(n_splits=5, shuffle=True, random_state=hparams.seed)
+    # folds = KFold(n_splits=5, shuffle=True, random_state=hparams.seed)
     try:
-        for fold_i, (train_index, val_index) in enumerate(folds.split(data)):
-            # if fold_i < current_fold_i:
-            #     logger.info(
-            #         f'Skipped fold {fold_i}, history fold start at {current_fold_i}'
-            #     )
-            #     continue
+        # for fold_i, (train_index, val_index) in enumerate(folds.split(data)):
+        for fold_i in range(5):
             hparams.fold_i = fold_i
-            train_data = data.iloc[train_index, :].reset_index(drop=True)
-            val_data = data.iloc[val_index, :].reset_index(drop=True)
-
-            train_dataloader, val_dataloader = generate_dataloaders(
-                hparams, train_data, val_data, transforms)
-            val_dataloaders = [anchor_dataloader, val_dataloader
-                               ] + real_world_test_dataloaders
-
-            da = DataModule(hparams, train_dataloader, val_dataloaders,
-                            test_dataloader)
+            da = ProjectDataModule(hparams)
             # Define callbacks
             checkpoint_path = os.path.join(hparams.log_dir, 'checkpoints')
             # os.makedirs(checkpoint_path, exist_ok=True)
@@ -562,6 +555,7 @@ if __name__ == "__main__":
                 print(model)
             # model.load_state_dict(torch.load(hparams.resume_from_checkpoint, map_location="cuda")["state_dict"])
             trainer = pl.Trainer(
+                replace_sampler_ddp=False,
                 fast_dev_run=hparams.debug,
                 strategy=get_training_strategy(hparams),
                 gpus=hparams.gpus,
@@ -587,11 +581,11 @@ if __name__ == "__main__":
                     round(checkpoint_callback.best_model_score, 4))
             except Exception as e:
                 print('Proccessing wrong in testing.')
-            del trainer
-            del model
-            del train_dataloader
-            del val_dataloader
-            torch.cuda.empty_cache()
+            # del trainer
+            # del model
+            # del train_dataloader
+            # del val_dataloader
+            # torch.cuda.empty_cache()
         logger.info(valid_roc_auc_scores)
     except Exception as e:
         raise e

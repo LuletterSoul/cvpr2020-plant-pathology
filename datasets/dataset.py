@@ -6,11 +6,12 @@
 # Standard libraries
 import os
 from time import time
-
+import pytorch_lightning as pl
 # Third party libraries
 import cv2
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import KFold
 import torch
 import albumentations
 from albumentations import (Compose, GaussianBlur, HorizontalFlip, MedianBlur,
@@ -25,9 +26,17 @@ from PIL import Image
 # User defined libraries
 from utils import *
 from torchvision.utils import save_image
+from torch.utils.data.distributed import DistributedSampler
 
 # for fast read data
 # from utils import NPY_FOLDER
+
+
+class MySampler(DistributedSampler):
+
+    def __len__(self) -> int:
+        # print(f'Pid {os.getpid()}, {super().__len__()}')
+        return super().__len__()
 
 
 class PlantDataset(Dataset):
@@ -263,68 +272,50 @@ def generate_transforms(hparams):
 
 
 def generate_val_dataloaders(hparams, val_data, transforms):
-    val_dataset = OpticalCandlingDataset(
+    dataset = OpticalCandlingDataset(
         data_folder=hparams.data_folder,
         data=val_data,
         transforms=transforms["val_transforms"],
         soft_labels_filename=hparams.soft_labels_filename)
 
-    val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=hparams.val_batch_size,
-        shuffle=False,
-        num_workers=hparams.num_workers,
-        pin_memory=True,
-        drop_last=True,
-    )
-    return val_dataloader
-
-
-def generate_train_dataloaders(hparams, data, transforms):
-    val_dataset = OpticalCandlingDataset(
-        data_folder=hparams.data_folder,
-        data=data,
-        transforms=transforms["train_transforms"],
-        soft_labels_filename=hparams.soft_labels_filename)
-
-    dataloader = DataLoader(
-        val_dataset,
-        batch_size=hparams.train_batch_size,
-        shuffle=False,
-        num_workers=hparams.num_workers,
-        pin_memory=True,
-        drop_last=True,
-    )
-    return dataloader
-
-
-def generate_dataloaders(hparams, train_data, val_data, transforms):
-    # train_dataset = OpticalCandlingDataset(
-    #     data_folder=hparams.data_folder,
-    #     data=train_data,
-    #     transforms=transforms["train_transforms"],
-    #     soft_labels_filename=hparams.soft_labels_filename)
-    # val_dataset = OpticalCandlingDataset(
-    #     data_folder=hparams.data_folder,
-    #     data=val_data,
-    #     transforms=transforms["val_transforms"],
-    #     soft_labels_filename=hparams.soft_labels_filename)
-    # train_dataloader = DataLoader(
-    #     train_dataset,
-    #     batch_size=hparams.train_batch_size,
-    #     shuffle=True,
-    #     num_workers=hparams.num_workers,
-    #     pin_memory=True,
-    #     drop_last=True,
-    # )
+    sampler = MySampler(dataset, shuffle=False, drop_last=True)
     # val_dataloader = DataLoader(
     #     val_dataset,
     #     batch_size=hparams.val_batch_size,
     #     shuffle=False,
     #     num_workers=hparams.num_workers,
     #     pin_memory=True,
-    #     drop_last=False,
+    #     drop_last=True,
     # )
+    val_dataloader = DataLoader(dataset,
+                                batch_size=hparams.val_batch_size,
+                                sampler=sampler)
+    return val_dataloader
+
+
+def generate_train_dataloaders(hparams, data, transforms):
+    dataset = OpticalCandlingDataset(
+        data_folder=hparams.data_folder,
+        data=data,
+        transforms=transforms["train_transforms"],
+        soft_labels_filename=hparams.soft_labels_filename)
+
+    # dataloader = DataLoader(
+    #     val_dataset,
+    #     batch_size=hparams.train_batch_size,
+    #     shuffle=True,
+    #     num_workers=hparams.num_workers,
+    #     pin_memory=True,
+    #     drop_last=True,
+    # )
+    sampler = MySampler(dataset, shuffle=True, drop_last=True)
+    dataloader = DataLoader(dataset,
+                            batch_size=hparams.train_batch_size,
+                            sampler=sampler)
+    return dataloader
+
+
+def generate_dataloaders(hparams, train_data, val_data, transforms):
     train_dataloader = generate_train_dataloaders(hparams, train_data,
                                                   transforms)
     val_dataloader = generate_val_dataloaders(hparams, val_data, transforms)
@@ -332,37 +323,45 @@ def generate_dataloaders(hparams, train_data, val_data, transforms):
 
 
 def generate_test_dataloaders(hparams, test_data, transforms):
-    test_dataset = OpticalCandlingDataset(
+    dataset = OpticalCandlingDataset(
         data_folder=hparams.data_folder,
         data=test_data,
         transforms=transforms["val_transforms"],
         soft_labels_filename=hparams.soft_labels_filename)
-    test_dataloader = DataLoader(
-        test_dataset,
-        batch_size=hparams.sample_num,
-        shuffle=False,
-        num_workers=hparams.num_workers,
-        pin_memory=True,
-        drop_last=False,
-    )
-    return test_dataloader
+    sampler = MySampler(dataset, shuffle=False, drop_last=True)
+    dataloader = DataLoader(dataset,
+                            batch_size=hparams.val_batch_size,
+                            sampler=sampler)
+    # dataloader = DataLoader(
+    #     test_dataset,
+    #     batch_size=hparams.sample_num,
+    #     shuffle=False,
+    #     num_workers=hparams.num_workers,
+    #     pin_memory=True,
+    #     drop_last=True,
+    # )
+    return dataloader
 
 
 def generate_anchor_dataloaders(hparams, test_data, transforms):
-    test_dataset = AnchorSet(data_folder=hparams.data_folder,
-                             data=test_data,
-                             transforms=transforms["val_transforms"],
-                             sample_num=hparams.sample_num,
-                             soft_labels_filename=hparams.soft_labels_filename)
-    anchor_dataloader = DataLoader(
-        test_dataset,
-        batch_size=hparams.sample_num,
-        shuffle=False,
-        num_workers=hparams.num_workers,
-        pin_memory=True,
-        drop_last=False,
-    )
-    return anchor_dataloader
+    dataset = AnchorSet(data_folder=hparams.data_folder,
+                        data=test_data,
+                        transforms=transforms["val_transforms"],
+                        sample_num=hparams.sample_num,
+                        soft_labels_filename=hparams.soft_labels_filename)
+    sampler = MySampler(dataset, shuffle=False, drop_last=True)
+    dataloader = DataLoader(dataset,
+                            batch_size=hparams.sample_num,
+                            sampler=sampler)
+    # anchor_dataloader = DataLoader(
+    #     test_dataset,
+    #     batch_size=hparams.sample_num * len(hparams.gpus),
+    #     shuffle=False,
+    #     num_workers=hparams.num_workers,
+    #     pin_memory=True,
+    #     drop_last=False,
+    # )
+    return dataloader
 
 
 def generate_tensor_dataloaders(hparams, test_data, transforms):
@@ -405,6 +404,70 @@ def test_transform():
     test_img = test_tf(image=test_img)["image"].transpose(2, 0, 1)
     test_img = torch.from_numpy(test_img)
     save_image(test_img, 'test.png')
+
+
+def get_real_world_test_dataloaders(hparams, transforms):
+    if 'test_real_world_set' not in hparams or hparams.test_real_world_set is None:
+        return []
+    test_paths = [
+        os.path.join(hparams.data_folder, filename)
+        for filename in os.listdir(hparams.data_folder)
+        if filename.startswith(hparams.test_real_world_set)
+        and filename.endswith('.csv')
+    ]
+    real_world_test_dataloaders = []
+    for filepath in test_paths[:hparams.test_real_world_num]:
+        test_data = pd.read_csv(filepath)
+        real_world_test_dataloaders.append(
+            generate_val_dataloaders(hparams, test_data, transforms))
+    return real_world_test_dataloaders
+
+
+class ProjectDataModule(pl.LightningDataModule):
+
+    def __init__(self, hparams):
+        seed_reproducer(2022)
+        super().__init__()
+        self.transforms = generate_transforms(hparams)
+        self.hparams.update(hparams)
+        self.folds = KFold(n_splits=5,
+                           shuffle=True,
+                           random_state=self.hparams.seed)
+        self.data = pd.read_csv(
+            os.path.join(self.hparams.data_folder, self.hparams.training_set))
+        self.test_data = pd.read_csv(
+            os.path.join(self.hparams.data_folder, self.hparams.test_set))
+        self.fold_indexes = {}
+        for fold_i, (train_index,
+                     val_index) in enumerate(self.folds.split(self.data)):
+            self.fold_indexes[fold_i] = [train_index, val_index]
+
+    def train_dataloader(self):
+        seed_reproducer(2022)
+        train_data = self.data.iloc[
+            self.fold_indexes[self.hparams.fold_i][0], :].reset_index(
+                drop=True)
+        return generate_train_dataloaders(self.hparams, train_data,
+                                          self.transforms)
+
+    def val_dataloader(self):
+        seed_reproducer(2022)
+        anchor_dataloader = generate_anchor_dataloaders(
+            self.hparams, self.test_data, self.transforms)
+        real_world_test_dataloaders = get_real_world_test_dataloaders(
+            self.hparams, self.transforms)
+        val_data = self.data.iloc[
+            self.fold_indexes[self.hparams.fold_i][1], :].reset_index(
+                drop=True)
+        val_dataloader = generate_val_dataloaders(self.hparams, val_data,
+                                                  self.transforms)
+        return [anchor_dataloader, val_dataloader
+                ] + real_world_test_dataloaders
+
+    def test_dataloader(self):
+        seed_reproducer(2022)
+        return generate_test_dataloaders(self.hparams, self.test_data,
+                                         self.transforms)
 
 
 if __name__ == '__main__':
