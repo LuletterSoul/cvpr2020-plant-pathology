@@ -200,7 +200,7 @@ class CoolSystem(pl.LightningModule):
         return {
             "filenames":
             np.array(filenames),
-            "test_loss":
+            "loss":
             loss.detach(),
             "scores":
             scores.detach(),
@@ -278,7 +278,7 @@ class CoolSystem(pl.LightningModule):
         return {
             "filenames":
             np.array(filenames),
-            "val_loss":
+            "loss":
             loss.detach(),
             "scores":
             scores.detach(),

@@ -338,8 +338,7 @@ def cat_image_in_ddp(val_epoch_out_path, cat_epoch_out_path):
 
 
 def collect_distributed_info(outputs):
-    val_loss_mean = torch.stack([output["val_loss"]
-                                 for output in outputs]).mean()
+    val_loss_mean = torch.stack([output["loss"] for output in outputs]).mean()
     data_load_times = torch.stack(
         [output["data_load_time"] for output in outputs]).sum()
     batch_run_times = torch.stack(
