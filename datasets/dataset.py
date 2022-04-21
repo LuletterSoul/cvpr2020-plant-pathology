@@ -168,7 +168,7 @@ class AnchorSet(OpticalCandlingDataset):
         # filename = self.data.iloc[index,0]
         self.data = pd.concat([
             self.data.loc[self.data['filename'].str.startswith(
-                class_name)].head(sample_num) for class_name in class_names
+                class_name)].head(sample_num) for class_name in CLASS_NAMES
         ])
 
 

@@ -15,16 +15,8 @@ from torchvision.utils import save_image
 import os
 from torchcam.methods import SmoothGradCAMpp
 import pandas as pd
-from test_from_csv import generate_report
-
-class_names = [
-    'OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak',
-    'Flower'
-]
-
-bn_class_names = ['OK', 'NoOK']
-
-header_names = ['filename'] + class_names
+from .report import *
+from .constant import *
 
 class_label_to_name = {
     0: 'ok',
@@ -261,9 +253,9 @@ def save_false_positive(hparams, current_epoch, scores_all, labels_all,
     fp_filenames = filenames[fp_indexes]
     fp_scores = torch.softmax(scores_all[fp_indexes], dim=1)
     fp_labels = labels_all[fp_indexes]  # one-hot label, [n, num_classes]
-    fp_label_names = np.array(class_names)[torch.argmax(
+    fp_label_names = np.array(CLASS_NAMES)[torch.argmax(
         fp_labels, dim=1).detach().cpu().numpy()]  # label name [n, 1]
-    fp_pred_names = np.array(class_names)[torch.argmax(
+    fp_pred_names = np.array(CLASS_NAMES)[torch.argmax(
         fp_scores, dim=1).detach().cpu().numpy()]  # label name [n, 1]
     save_path = os.path.join(output_dir, f'{prefix}-fp.csv')
     df = pd.DataFrame({
@@ -272,7 +264,7 @@ def save_false_positive(hparams, current_epoch, scores_all, labels_all,
         'pred': fp_pred_names
     })
     fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
-                           columns=class_names)
+                           columns=CLASS_NAMES)
     fp_df = pd.concat([df, fp_pred], axis=1)
     fp_df.to_csv(save_path, index=False)
 
@@ -285,9 +277,9 @@ def generate_classification_report(hparams, current_epoch, scores_all,
     file_name_df = pd.DataFrame({
         'filename': filenames,
     })
-    score_df = pd.DataFrame(scores.detach().cpu().numpy(), columns=class_names)
+    score_df = pd.DataFrame(scores.detach().cpu().numpy(), columns=CLASS_NAMES)
     gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
-                         columns=class_names)
+                         columns=CLASS_NAMES)
     pred_df = pd.concat([file_name_df, score_df], axis=1)
     gt_df = pd.concat([file_name_df, gt_df], axis=1)
     pred_df.to_csv(pred_save_path, index=False)
@@ -323,7 +315,7 @@ def cat_image_in_ddp(val_epoch_out_path, cat_epoch_out_path):
     os.makedirs(cat_epoch_out_path, exist_ok=True)
     filenames = os.listdir(val_epoch_out_path)
     filenames = sorted(filenames)
-    for class_name in class_names:
+    for class_name in CLASS_NAMES:
         imgs = []
         for filename in filenames:
             if filename.startswith(class_name):
@@ -346,10 +338,12 @@ def collect_distributed_info(outputs):
     scores_all = torch.cat([output["scores"] for output in outputs])
     labels_all = torch.cat([output["labels"] for output in outputs])
     val_roc_auc = get_roc_auc(labels_all, scores_all)
+    filenames = np.concatenate([output["filenames"] for output in outputs])
     return DotMap({
         'loss_mean': val_loss_mean,
         'scores': scores_all,
         'labels': labels_all,
+        'filenames': filenames,
         'roc_auc': val_roc_auc,
         'data_load_times': data_load_times,
         'batch_run_times': batch_run_times

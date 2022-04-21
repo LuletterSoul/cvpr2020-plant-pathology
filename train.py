@@ -216,13 +216,13 @@ class CoolSystem(pl.LightningModule):
     def test_epoch_end(self, outputs):
         # compute loss
         test_info = collect_distributed_info(outputs)
-        self.post_report(self.hparams,
-                         self.current_epoch,
-                         test_info.scores,
-                         test_info.labels,
-                         test_info.filenames,
-                         self.test_output_dir,
-                         ger_report=True)
+        post_report(self.hparams,
+                    self.current_epoch,
+                    test_info.scores,
+                    test_info.labels,
+                    test_info.filenames,
+                    self.test_output_dir,
+                    ger_report=True)
         # test_roc_auc = get_roc_auc(labels_all, scores_all)
         self.HEC_LOGGER.info(
             f"{self.hparams.fold_i}-{self.current_epoch} | "
@@ -312,10 +312,8 @@ class CoolSystem(pl.LightningModule):
             other_roc_auc = np.array([info.roc_auc
                                       for info in other_infos]).mean()
 
-        filenames = np.concatenate(
-            [output["filenames"] for output in outputs[1]])
         post_report(self.hparams, self.current_epoch, val_info.scores,
-                    val_info.labels, filenames, self.val_output_dir)
+                    val_info.labels, val_info.filenames, self.val_output_dir)
 
         # terminal logs
         self.HEC_LOGGER.info(
