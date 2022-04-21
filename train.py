@@ -32,7 +32,6 @@ from PIL import Image
 from pytorch_lightning.plugins import *
 from utils import *
 import csv
-from test_from_csv import generate_report
 from pytorch_lightning.loggers import TensorBoardLogger
 
 
@@ -91,13 +90,13 @@ class CoolSystem(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def on_train_start(self) -> None:
+    def on_fit_start(self) -> None:
         ckpt_path = get_checkpoint_resume(self.hparams)
         if ckpt_path is not None:
             meta = parse_checkpoint_meta_info(os.path.basename(ckpt_path))
             for name, value in meta.items():
                 self.log(name, torch.tensor(value, dtype=torch.float))
-        return super().on_train_start()
+        return super().on_fit_start()
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.Adam(self.parameters(),

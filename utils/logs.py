@@ -20,6 +20,7 @@ import pandas as pd
 import torch
 from dotmap import DotMap
 from os.path import dirname
+from pytorch_lightning import seed_everything
 
 IMG_SHAPE = (700, 600, 3)
 IMAGE_FOLDER = "data/images"
@@ -63,6 +64,7 @@ def seed_reproducer(seed=2020):
     -------
     seed_reproducer(seed=2019).
     """
+    seed_everything(seed)
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
