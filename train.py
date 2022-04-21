@@ -36,35 +36,6 @@ from test_from_csv import generate_report
 from pytorch_lightning.loggers import TensorBoardLogger
 
 
-class DataModule(pl.LightningDataModule):
-
-    def __init__(self,
-                 hparams,
-                 train_dataloader,
-                 val_dataloader,
-                 test_dataloader,
-                 train_transforms=None,
-                 val_transforms=None,
-                 test_transforms=None,
-                 dims=None):
-        super().__init__(train_transforms, val_transforms, test_transforms,
-                         dims)
-        self.hparams.update(hparams)
-        self._train_dataloader = train_dataloader
-        self._test_dataloader = test_dataloader
-        self._val_dataloader = val_dataloader
-
-    def train_dataloader(self):
-        return self._train_dataloader
-
-    def val_dataloader(self):
-        # return [torch.utils.data.DataLoader(self.val_dataset_1), torch.utils.data.DataLoader(self.val_dataset_2)]
-        return self._val_dataloader
-
-    def test_dataloader(self):
-        return self._test_dataloader
-
-
 class CoolSystem(pl.LightningModule):
 
     def __init__(self, hparams):
@@ -121,8 +92,11 @@ class CoolSystem(pl.LightningModule):
         return self.model(x)
 
     def on_train_start(self) -> None:
-        self.log('val_loss', float('inf'))
-        self.log('val_roc_auc', 0)
+        ckpt_path = get_checkpoint_resume(self.hparams)
+        if ckpt_path is not None:
+            meta = parse_checkpoint_meta_info(os.path.basename(ckpt_path))
+            for name, value in meta.items():
+                self.log(name, torch.tensor(value, dtype=torch.float))
         return super().on_train_start()
 
     def configure_optimizers(self):
@@ -220,7 +194,6 @@ class CoolSystem(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         step_start_time = time()
         images, labels, data_load_time, filenames = batch
-        # self.HEC_LOGGER_kun.info(f'{dataloader_idx}: {images.size()}')
         data_load_time = torch.sum(data_load_time)
         scores = self(images)
         loss = self.criterion(scores, labels)
@@ -242,35 +215,28 @@ class CoolSystem(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         # compute loss
-        test_loss_mean = torch.stack(
-            [output["test_loss"] for output in outputs]).mean()
-        self.data_load_times = torch.stack(
-            [output["data_load_time"] for output in outputs]).sum()
-        self.batch_run_times = torch.stack(
-            [output["batch_run_time"] for output in outputs]).sum()
-
-        # filenames = np.concatenate([output["filenames"] for output in outputs])
-        # images = torch.cat([output["images"] for output in outputs]).cpu()
-        scores_all = torch.cat([output["scores"] for output in outputs])
-        scores_all = torch.softmax(scores_all, dim=1)
-        labels_all = torch.round(
-            torch.cat([output["labels"] for output in outputs]))
-        filenames = np.concatenate([output["filenames"] for output in outputs])
-        self.post_report(scores_all,
-                         labels_all,
-                         filenames,
+        test_info = collect_distributed_info(outputs)
+        self.post_report(self.hparams,
+                         self.current_epoch,
+                         test_info.scores,
+                         test_info.labels,
+                         test_info.filenames,
                          self.test_output_dir,
                          ger_report=True)
-        test_roc_auc = get_roc_auc(labels_all, scores_all)
-        self.HEC_LOGGER.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
-                             f"lr : {self.scheduler.get_lr()[0]:.6f} | "
-                             f"test_loss : {test_loss_mean:.4f} | "
-                             f"test_roc_auc : {test_roc_auc:.4f} | "
-                             f"data_load_times : {self.data_load_times:.2f} | "
-                             f"batch_run_times : {self.batch_run_times:.2f}")
-        self.log('test_loss', test_loss_mean)
-        self.log('test_roc_auc', test_roc_auc)
-        return {"test_loss": test_loss_mean, "test_roc_auc": test_roc_auc}
+        # test_roc_auc = get_roc_auc(labels_all, scores_all)
+        self.HEC_LOGGER.info(
+            f"{self.hparams.fold_i}-{self.current_epoch} | "
+            f"lr : {self.scheduler.get_lr()[0]:.6f} | "
+            f"test_loss : {test_info.loss_mean:.4f} | "
+            f"test_roc_auc : {test_info.roc_auc:.4f} | "
+            f"data_load_times : {test_info.data_load_times:.2f} | "
+            f"batch_run_times : {test_info.batch_run_times:.2f}")
+        self.log('test_loss', test_info.test_loss_mean)
+        self.log('test_roc_auc', test_info.test_roc_auc)
+        return {
+            "test_loss": test_info.loss_mean,
+            "test_roc_auc": test_info.roc_auc
+        }
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         step_start_time = time()
@@ -325,118 +291,21 @@ class CoolSystem(pl.LightningModule):
                           ]).to(data_load_time.device),
         }
 
-    def save_false_positive(self, scores_all, labels_all, filenames,
-                            output_dir):
-        prefix = f'{self.hparams.fold_i}-{self.current_epoch}'
-        fp_indexes = select_fn_indexes(scores_all, labels_all)
-        fp_filenames = filenames[fp_indexes]
-        fp_scores = torch.softmax(scores_all[fp_indexes], dim=1)
-        fp_labels = labels_all[fp_indexes]  # one-hot label, [n, num_classes]
-        fp_label_names = np.array(class_names)[torch.argmax(
-            fp_labels, dim=1).detach().cpu().numpy()]  # label name [n, 1]
-        fp_pred_names = np.array(class_names)[torch.argmax(
-            fp_scores, dim=1).detach().cpu().numpy()]  # label name [n, 1]
-        save_path = os.path.join(output_dir, f'{prefix}-fp.csv')
-        df = pd.DataFrame({
-            'filename': fp_filenames,
-            'label': fp_label_names,
-            'pred': fp_pred_names
-        })
-        fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
-                               columns=class_names)
-        fp_df = pd.concat([df, fp_pred], axis=1)
-        fp_df.to_csv(save_path, index=False)
-
-    def generate_classification_report(self, scores_all, labels_all, filenames,
-                                       output_dir):
-        prefix = f'{self.hparams.fold_i}-{self.current_epoch}'
-        pred_save_path = os.path.join(output_dir, f'{prefix}-pred.csv')
-        scores = torch.softmax(scores_all, dim=1)
-        file_name_df = pd.DataFrame({
-            'filename': filenames,
-        })
-        score_df = pd.DataFrame(scores.detach().cpu().numpy(),
-                                columns=class_names)
-        gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
-                             columns=class_names)
-        pred_df = pd.concat([file_name_df, score_df], axis=1)
-        gt_df = pd.concat([file_name_df, gt_df], axis=1)
-        pred_df.to_csv(pred_save_path, index=False)
-        generate_report(pred_df, gt_df, prefix, output_dir)
-
-    def post_report(self,
-                    scores_all,
-                    labels_all,
-                    filenames,
-                    output_dir,
-                    ger_report=False):
-        """ postprocessing classification results, producing classification report or 
-            saving false positive to the csv files.
-        Args:
-            scores_all (_type_): _description_
-            labels_all (_type_): _description_
-            filenames (_type_): _description_
-            output_dir (_type_): _description_
-        """
-        self.save_false_positive(scores_all, labels_all, filenames, output_dir)
-        if ger_report:
-            self.generate_classification_report(scores_all, labels_all,
-                                                filenames, output_dir)
-
-    def cat_image_in_ddp(self):
-        """In ddp mode, the each intermidiate output are saved by different processes. This function collect them and cat 
-        these images together for better visualization.
-        """
-        val_epoch_out_path = os.path.join(self.vis_val_output,
-                                          str(self.current_epoch))
-        cat_epoch_out_path = os.path.join(self.cat_val_output,
-                                          str(self.current_epoch))
-        os.makedirs(cat_epoch_out_path, exist_ok=True)
-        filenames = os.listdir(val_epoch_out_path)
-        filenames = sorted(filenames)
-        for class_name in class_names:
-            imgs = []
-            for filename in filenames:
-                if filename.startswith(class_name):
-                    img = cv2.imread(os.path.join(val_epoch_out_path,
-                                                  filename))
-                    if img is None:
-                        continue
-                    imgs.append(img)
-            if len(imgs):
-                imgs = cv2.vconcat(imgs)
-                cv2.imwrite(
-                    os.path.join(cat_epoch_out_path, f'{class_name}.jpeg'),
-                    imgs)
-
-    def collect_val_info(self, outputs):
-        val_loss_mean = torch.stack([output["val_loss"]
-                                     for output in outputs]).mean()
-        self.data_load_times = torch.stack(
-            [output["data_load_time"] for output in outputs]).sum()
-        self.batch_run_times = torch.stack(
-            [output["batch_run_time"] for output in outputs]).sum()
-        scores_all = torch.cat([output["scores"] for output in outputs])
-        labels_all = torch.cat([output["labels"] for output in outputs])
-        val_roc_auc = get_roc_auc(labels_all, scores_all)
-        return DotMap({
-            'loss_mean': val_loss_mean,
-            'scores': scores_all,
-            'labels': labels_all,
-            'roc_auc': val_roc_auc
-        })
-
     def validation_epoch_end(self, outputs):
-        self.cat_image_in_ddp()
+
+        vis_output_dir = os.path.join(self.vis_val_output,
+                                      str(self.current_epoch))
+        cat_output_dir = os.path.join(self.cat_val_output,
+                                      str(self.current_epoch))
+        cat_image_in_ddp(vis_output_dir, cat_output_dir)
         # compute loss
         # only process the main validation set.
-        # outputs = outputs[0]
-        val_info = self.collect_val_info(outputs[1])
+        val_info = collect_distributed_info(outputs[1])
         other_roc_auc = 0
         other_loss = 0
         if len(outputs) > 2:
             other_infos = [
-                self.collect_val_info(output) for output in outputs[2:]
+                collect_distributed_info(output) for output in outputs[2:]
             ]
             other_loss = torch.stack([info.loss_mean
                                       for info in other_infos]).mean()
@@ -445,18 +314,19 @@ class CoolSystem(pl.LightningModule):
 
         filenames = np.concatenate(
             [output["filenames"] for output in outputs[1]])
-        self.post_report(val_info.scores, val_info.labels, filenames,
-                         self.val_output_dir)
+        post_report(self.hparams, self.current_epoch, val_info.scores,
+                    val_info.labels, filenames, self.val_output_dir)
 
         # terminal logs
-        self.HEC_LOGGER.info(f"{self.hparams.fold_i}-{self.current_epoch} | "
-                             f"lr : {self.scheduler.get_lr()[0]:.6f} | "
-                             f"val_loss : {val_info.loss_mean:.4f} | "
-                             f"val_roc_auc : {val_info.roc_auc:.4f} | "
-                             f"other_loss : {other_loss:.4f} | "
-                             f"other_roc_auc : {other_roc_auc:.4f} | "
-                             f"data_load_times : {self.data_load_times:.2f} | "
-                             f"batch_run_times : {self.batch_run_times:.2f}")
+        self.HEC_LOGGER.info(
+            f"{self.hparams.fold_i}-{self.current_epoch} | "
+            f"lr : {self.scheduler.get_lr()[0]:.6f} | "
+            f"val_loss : {val_info.loss_mean:.4f} | "
+            f"val_roc_auc : {val_info.roc_auc:.4f} | "
+            f"other_loss : {other_loss:.4f} | "
+            f"other_roc_auc : {other_roc_auc:.4f} | "
+            f"data_load_times : {val_info.data_load_times:.2f} | "
+            f"batch_run_times : {val_info.batch_run_times:.2f}")
         # must return key -> val_loss
         self.log('val_loss', val_info.loss_mean)
         self.log('val_roc_auc', val_info.roc_auc)

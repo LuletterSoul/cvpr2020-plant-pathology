@@ -115,11 +115,20 @@ def parse_checkpoint_meta_info(checkpoint_name):
     for name in names:
         if 'fold' in name:
             fold_i = int(name.split('=')[-1])
-            meta['fold_i'] = fold_i
+            meta['fold'] = fold_i
+        if 'val_loss' in name:
+            val_loss = float(name.split('=')[-1])
+            meta['val_loss'] = val_loss
         if 'val_roc_auc' in name:
             val_roc_auc = float(name.split('=')[-1])
             meta['val_roc_auc'] = val_roc_auc
-    return meta
+        if 'other_loss' in name:
+            other_loss = float(name.split('=')[-1])
+            meta['other_loss'] = other_loss
+        if 'other_roc_auc' in name:
+            other_roc_auc = float(name.split('=')[-1])
+            meta['other_roc_auc'] = other_roc_auc
+    return DotMap(meta)
 
 
 def parse_checkpoint_dir(checkpoint_dir):
@@ -131,17 +140,17 @@ def parse_checkpoint_dir(checkpoint_dir):
                 'fold') or 'test-real-world' in checkpoint_name:
             continue
         meta = parse_checkpoint_meta_info(checkpoint_name)
-        fold_i = meta['fold_i']
-        val_roc_auc = meta['val_roc_auc']
-        if fold_i not in best_checkpoint_paths:
-            best_checkpoint_paths[fold_i] = os.path.join(
-                checkpoint_dir, checkpoint_name)
-        if fold_i not in best_val_roc_auc:
-            best_val_roc_auc[fold_i] = val_roc_auc
-        if best_val_roc_auc[fold_i] < val_roc_auc:
-            best_checkpoint_paths[fold_i] = os.path.join(
-                checkpoint_dir, checkpoint_name)
-            best_val_roc_auc[fold_i] = val_roc_auc
+        fold = meta.fold
+        val_roc_auc = meta.val_roc_auc
+        if fold not in best_checkpoint_paths:
+            best_checkpoint_paths[fold] = os.path.join(checkpoint_dir,
+                                                       checkpoint_name)
+        if fold not in best_val_roc_auc:
+            best_val_roc_auc[fold] = val_roc_auc
+        if best_val_roc_auc[fold] < val_roc_auc:
+            best_checkpoint_paths[fold] = os.path.join(checkpoint_dir,
+                                                       checkpoint_name)
+            best_val_roc_auc[fold] = val_roc_auc
     return DotMap(best_checkpoint_paths)
 
 

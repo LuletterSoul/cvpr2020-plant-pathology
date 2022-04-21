@@ -24,14 +24,15 @@ seed: 2022
 min_epochs: 20
 max_epochs: 70
 patience: 20
-gpus: [1, 2, 3]
+# gpus: [1, 2, 3]
+gpus: [1]
 precision: 16
 gradient_clip_val: 0
 soft_labels_filename: ""
 log_dir: logs_submit
 sample_num: 6
 debug: true
-clean_debug: true
+clean_debug: false
 # normalization:
 #   mean: [0.4914, 0.4822, 0.4465]
 #   std: [0.247, 0.243, 0.261]

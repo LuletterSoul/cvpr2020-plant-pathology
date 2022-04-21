@@ -3,27 +3,13 @@
 # @Last Modified by:   yican
 # @Last Modified time: 2020-07-07 14:48:03
 # Standard libraries
-from pydoc import classname
 import shutil
-import traceback
 import numpy as np
-from unicodedata import name
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import EarlyStopping
 import numpy as np
 import time
 import os
-
-# Third party libraries
-import torch
-from scipy.special import softmax
 from sklearn import metrics
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
 # User defined libraries
-from datasets.dataset import OpticalCandlingDataset, generate_transforms, PlantDataset
-from utils import init_hparams, init_logger, load_test_data, load_test_data_with_header, seed_reproducer, load_data
 import pandas as pd
 from utils import *
 
@@ -208,7 +194,7 @@ if __name__ == "__main__":
         filename for filename in os.listdir(test_dir)
         if filename.endswith('.csv')
     ]
-    hparams = init_hparams()
+    # hparams = init_hparams()
 
     # Make experiment reproducible
     seed_reproducer(hparams.seed)
@@ -220,7 +206,7 @@ if __name__ == "__main__":
     fn_output_dir = os.path.join(output_dir, 'fn')
 
     # init logger
-    logger = init_logger("kun_out", log_dir=hparams.log_dir)
+    # logger = init_logger("kun_out", log_dir=hparams.log_dir)
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -237,62 +223,4 @@ if __name__ == "__main__":
         print(test_pred_file_path)
         pred_data = pd.read_csv(test_pred_file_path)
         print(pred_data.head(10))
-
         generate_report(pred_data, gt_data, pred_file, output_dir)
-
-        # # Exclude first column (filename), and calculate the the prediction results, which is appended to the last column.
-        # pred_data['pred_class'] = pred_data.iloc[:, 1:].idxmax(axis=1)
-        # # print(pred_data[:10])
-        # filename = os.path.splitext(pred_file)[0]
-
-        # save_false_negative(hparams.data_folder, pred_data, gt_data,  class_names, fn_output_dir)
-
-        # # Read ground truth labels from test data.
-        # # The label format is one-hot vector.
-        # gt_labels = gt_data.iloc[:, 1:].to_numpy()
-        # pred_labels = pred_data.iloc[:, 1:-1].to_numpy()
-
-        # # N * 2
-        # thresh_pred_labels = np.concatenate([pred_labels[:, [0]],pred_labels[:, 1:].sum(axis=1, keepdims=True)], axis = 1)
-
-        # # Convert one-hot to class label.
-        # gt_labels = np.argmax(gt_labels, axis=1)
-        # pred_labels = np.argmax(pred_labels, axis=1)
-
-        # # Convert to binary classification
-        # bn_gt_labels = gt_labels.copy()
-        # bn_pred_labels = pred_labels.copy()
-
-        # # All the labels of bad eggs are set to 1
-        # # 0 represents good eggs
-        # # 1 represents bad eggs
-        # bn_gt_labels[bn_gt_labels!=0] = 1
-        # bn_pred_labels[bn_pred_labels!=0] = 1
-
-        # for th in thresh:
-        #     # N
-        #     # th_pred_labels = np.argmax((thresh_pred_labels > th).astype(int), axis=1)
-        #     th_pred_labels = (~(thresh_pred_labels[:, 0] > th)).astype(int)
-        #     # th_pred_labels[th_pred_labels!=0] = 1
-        #     th_output_dir = os.path.join(output_dir, 'th')
-        #     os.makedirs(th_output_dir, exist_ok=True)
-        #     th_confusion_matrix =metrics.confusion_matrix(bn_gt_labels, th_pred_labels)
-        #     th_report = metrics.classification_report(bn_gt_labels, th_pred_labels, target_names=bn_class_names, output_dict=True)
-        #     save_csv_report(th_report, os.path.join(th_output_dir,f'TH_Report_{filename}_th_{th}.csv'), bn_class_names)
-        #     save_csv_confusion_matrix(th_confusion_matrix, os.path.join(th_output_dir,f'TH_CM_{filename}_th_{th}.csv'), bn_class_names)
-
-        # confusion_matrix =metrics.confusion_matrix(gt_labels, pred_labels)
-        # report = metrics.classification_report(gt_labels, pred_labels, target_names=class_names, output_dict=True)
-
-        # bn_confusion_matrix =metrics.confusion_matrix(bn_gt_labels, bn_pred_labels)
-        # bn_report = metrics.classification_report(bn_gt_labels, bn_pred_labels, target_names=bn_class_names, output_dict=True)
-
-        # save_csv_report(report, os.path.join(output_dir,f'Report_{filename}.csv'), class_names)
-        # save_csv_confusion_matrix(confusion_matrix, os.path.join(output_dir,f'CM_{filename}.csv'), class_names)
-
-        # save_csv_report(bn_report, os.path.join(output_dir,f'BN_Report_{filename}.csv'), bn_class_names)
-        # save_csv_confusion_matrix(bn_confusion_matrix, os.path.join(output_dir,f'BN_CM_{filename}.csv'), bn_class_names)
-
-        # df = pd.DataFrame.from_dict(report)
-        # df.to_csv(f'Report_{filename}.csv')
-        # classification_report_csv(report, os.path.join('outputs',f'Report_{filename}.csv'))

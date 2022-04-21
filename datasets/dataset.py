@@ -34,6 +34,15 @@ from torch.utils.data.distributed import DistributedSampler
 
 class MySampler(DistributedSampler):
 
+    def __init__(self,
+                 dataset: Dataset,
+                 num_replicas: Optional[int] = None,
+                 rank: Optional[int] = None,
+                 shuffle: bool = True,
+                 seed: int = 0,
+                 drop_last: bool = False) -> None:
+        super().__init__(dataset, num_replicas, rank, shuffle, seed, drop_last)
+
     def __len__(self) -> int:
         # print(f'Pid {os.getpid()}, {super().__len__()}')
         return super().__len__()
@@ -289,6 +298,7 @@ def generate_val_dataloaders(hparams, val_data, transforms):
     # )
     val_dataloader = DataLoader(dataset,
                                 batch_size=hparams.val_batch_size,
+                                num_workers=hparams.num_workers,
                                 sampler=sampler)
     return val_dataloader
 
@@ -311,6 +321,7 @@ def generate_train_dataloaders(hparams, data, transforms):
     sampler = MySampler(dataset, shuffle=True, drop_last=True)
     dataloader = DataLoader(dataset,
                             batch_size=hparams.train_batch_size,
+                            num_workers=hparams.num_workers,
                             sampler=sampler)
     return dataloader
 
@@ -330,6 +341,7 @@ def generate_test_dataloaders(hparams, test_data, transforms):
         soft_labels_filename=hparams.soft_labels_filename)
     sampler = MySampler(dataset, shuffle=False, drop_last=True)
     dataloader = DataLoader(dataset,
+                            num_workers=hparams.num_workers,
                             batch_size=hparams.val_batch_size,
                             sampler=sampler)
     # dataloader = DataLoader(
@@ -351,6 +363,7 @@ def generate_anchor_dataloaders(hparams, test_data, transforms):
                         soft_labels_filename=hparams.soft_labels_filename)
     sampler = MySampler(dataset, shuffle=False, drop_last=True)
     dataloader = DataLoader(dataset,
+                            num_workers=hparams.num_workers,
                             batch_size=hparams.sample_num,
                             sampler=sampler)
     # anchor_dataloader = DataLoader(

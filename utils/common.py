@@ -1,3 +1,4 @@
+from dotmap import DotMap
 from sklearn.metrics import roc_auc_score
 import torch
 import sys
@@ -13,22 +14,47 @@ from PIL import Image
 from torchvision.utils import save_image
 import os
 from torchcam.methods import SmoothGradCAMpp
-class_names = ['OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak', 'Flower']
+import pandas as pd
+from test_from_csv import generate_report
+
+class_names = [
+    'OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak',
+    'Flower'
+]
 
 bn_class_names = ['OK', 'NoOK']
 
-header_names = ['filename'] + class_names 
+header_names = ['filename'] + class_names
 
-class_label_to_name = {0: 'ok', 1: 'qishihuangdong', 2 : 'sipei', 3: 'kongliao', 4: 'wuqishi', 5: 'liewen', 6: 'ruopei', 7: 'huake'}
-name_to_class_label = {'ok': 0 , 'qishihuangdong' : 1, 'sipei' : 1, 'kongliao' : 1, 'wuqishi' : 1, 'liewen' : 1, 'ruopei' : 1}
+class_label_to_name = {
+    0: 'ok',
+    1: 'qishihuangdong',
+    2: 'sipei',
+    3: 'kongliao',
+    4: 'wuqishi',
+    5: 'liewen',
+    6: 'ruopei',
+    7: 'huake'
+}
+name_to_class_label = {
+    'ok': 0,
+    'qishihuangdong': 1,
+    'sipei': 1,
+    'kongliao': 1,
+    'wuqishi': 1,
+    'liewen': 1,
+    'ruopei': 1
+}
+
 
 def extract_activation_map(cam_extractor: SmoothGradCAMpp, images, preds):
     activation_map = cam_extractor(preds.argmax(dim=1).tolist(), preds)[0]
     # print(len(activation_map))
-    activation_map = torch.nn.functional.interpolate(activation_map.unsqueeze(1), 
-                                                     size = images.size()[2:], 
-                                                     mode ='bicubic',
-                                                     align_corners=True)
+    activation_map = torch.nn.functional.interpolate(
+        activation_map.unsqueeze(1),
+        size=images.size()[2:],
+        mode='bicubic',
+        align_corners=True)
     # [b, 1, 3, h, w]
     return activation_map.to(images.device)
 
@@ -50,13 +76,16 @@ def generate_heatmaps(activation_maps, colormap='jet'):
     for mask in activation_maps:
         cmap = cm.get_cmap(colormap)
         # generate a heat map, [h, w, 3]
-        heat_map = torch.from_numpy(cmap((mask ** 2).detach().cpu().numpy())[:, :, :3]).to(mask.device)
+        heat_map = torch.from_numpy(
+            cmap((mask**2).detach().cpu().numpy())[:, :, :3]).to(mask.device)
         heat_maps.append(heat_map)
         # print(heat_map.size())
         # [b, n, h, w, 3] -> [b, n, 3, h, w]
-    return torch.stack(heat_maps).reshape(b, n, h, w, -1).permute(0, 1, 4, 2, 3)
-    
-def overlay(images, heat_maps, alpha = 0.5):
+    return torch.stack(heat_maps).reshape(b, n, h, w,
+                                          -1).permute(0, 1, 4, 2, 3)
+
+
+def overlay(images, heat_maps, alpha=0.5):
     """_summary_
 
     Args:
@@ -69,17 +98,20 @@ def overlay(images, heat_maps, alpha = 0.5):
     """
     return images * alpha + (1 - alpha) * heat_maps
 
-    
+
 def render_label(image, label, pred):
     image = cv2.putText(image, f'Label: {label}', (50, 100),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2,
+                        cv2.LINE_AA)
     image = cv2.putText(image, f'Pred: {pred}', (50, 50),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2,
+                        cv2.LINE_AA)
     # cv2.imshow('Classification Result',image)
     # cv2.waitKey(1)
     return image
 
-def img_denorm(image, mean, std): 
+
+def img_denorm(image, mean, std):
     #for ImageNet the mean and std are:
     #mean = np.asarray([ 0.485, 0.456, 0.406 ])
     #std = np.asarray([ 0.229, 0.224, 0.225 ])
@@ -89,9 +121,21 @@ def img_denorm(image, mean, std):
     # std = 1.0 / std
     image = image * std + mean
     return torch.clamp(image, 0, 1)
- 
 
-def visualization(batch_id, cam_extractors : List[SmoothGradCAMpp], images, preds, labels, filenames, output_dir, save_batch=True,save_per_image=False, fp_indexes= None, norm=True, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+
+def visualization(batch_id,
+                  cam_extractors: List[SmoothGradCAMpp],
+                  images,
+                  preds,
+                  labels,
+                  filenames,
+                  output_dir,
+                  save_batch=True,
+                  save_per_image=False,
+                  fp_indexes=None,
+                  norm=True,
+                  mean=[0.485, 0.456, 0.406],
+                  std=[0.229, 0.224, 0.225]):
     """render the convolution's activation in the images.
 
     Args:
@@ -107,48 +151,58 @@ def visualization(batch_id, cam_extractors : List[SmoothGradCAMpp], images, pred
     os.makedirs(output_dir, exist_ok=True)
     b, _, h, w = images.size()
     n = len(cam_extractors)
-    activation_maps = torch.cat([extract_activation_map(cam, images, preds) for cam in cam_extractors]
-                                , dim=1)
+    activation_maps = torch.cat(
+        [extract_activation_map(cam, images, preds) for cam in cam_extractors],
+        dim=1)
     heat_maps = generate_heatmaps(activation_maps, 'jet')
     # print(heat_maps.size())
 
-    images = img_denorm(images, 
-                    mean=mean,
-                    std=std) 
+    images = img_denorm(images, mean=mean, std=std)
     images = images.unsqueeze(1)
     mask_images = overlay(images, heat_maps)
     images = render_labels(images, labels, preds)
-    results = torch.cat([images, mask_images], dim=1).reshape(b*(n+1), 3, h, w)
+    results = torch.cat([images, mask_images],
+                        dim=1).reshape(b * (n + 1), 3, h, w)
     # print(results.size())
     if save_batch:
-        save_image(results, os.path.join(output_dir, f'{batch_id}.jpeg'), nrow=n+1)
+        save_image(results,
+                   os.path.join(output_dir, f'{batch_id}.jpeg'),
+                   nrow=n + 1)
     if save_per_image:
-       per_results = results.view(b , n+1, 3, h, w)
-       for filename, image in zip(filenames, per_results):
-           prefix = os.path.splitext(filename)[0].replace('/', '_')
-           save_image(image, os.path.join(output_dir, f'{prefix}.jpeg'), nrow =n+1)
+        per_results = results.view(b, n + 1, 3, h, w)
+        for filename, image in zip(filenames, per_results):
+            prefix = os.path.splitext(filename)[0].replace('/', '_')
+            save_image(image,
+                       os.path.join(output_dir, f'{prefix}.jpeg'),
+                       nrow=n + 1)
 
     # save false negative by class.
     if fp_indexes is not None:
         # if fn_indexes is None:
-        results = results.reshape(b , n+1, 3, h, w)
+        results = results.reshape(b, n + 1, 3, h, w)
         fp_output_dir = os.path.join(output_dir, 'fp')
         os.makedirs(fp_output_dir, exist_ok=True)
         # selected the false positive
-        labels = torch.argmax(labels, dim=1).detach().cpu().numpy() # [b, 1] transfer one-hot into class index
+        labels = torch.argmax(labels, dim=1).detach().cpu().numpy(
+        )  # [b, 1] transfer one-hot into class index
         fp_results = results[fp_indexes]
         if not len(fp_results):
-            print(f'Batch id {batch_id}: Not found false negative samples in batch.')
+            print(
+                f'Batch id {batch_id}: Not found false negative samples in batch.'
+            )
             return
         fn_filenames = np.array(filenames)[fp_indexes]
         fp_labels = labels[fp_indexes]
-        for label, result, filename in zip(fp_labels, fp_results, fn_filenames):
+        for label, result, filename in zip(fp_labels, fp_results,
+                                           fn_filenames):
             class_dir = os.path.join(fp_output_dir, class_label_to_name[label])
             if not os.path.exists(class_dir):
                 os.makedirs(class_dir, exist_ok=True)
             filename = os.path.splitext(filename)[0].replace('/', '_')
-            save_image(result, os.path.join(class_dir, f'{filename}.jpeg'), nrow =n+1)
-        
+            save_image(result,
+                       os.path.join(class_dir, f'{filename}.jpeg'),
+                       nrow=n + 1)
+
 
 def render_labels(images, labels, preds):
     """
@@ -176,38 +230,142 @@ def render_labels(images, labels, preds):
         # [b, 1, 3, h, w]
     return torch.stack(new_images).unsqueeze(1).to(images.device)
 
+
 def select_fn_indexes(pred, label):
     label_class = torch.argmax(label, dim=1)
-    pred_class = torch.argmax(pred, dim =1)
+    pred_class = torch.argmax(pred, dim=1)
     fn_indexes = torch.ne(pred_class, label_class) & torch.eq(pred_class, 0)
     fn_indexes = fn_indexes.detach().cpu().numpy()
     return fn_indexes
 
 
 def get_roc_auc(labels, scores):
-    class_num = labels.argmax(dim=1).unique() 
+    class_num = labels.argmax(dim=1).unique()
     val_roc_auc = 0
     try:
         if len(class_num) == 1:
             val_roc_auc = torch.tensor(0)
         else:
             # print(labels)
-            val_roc_auc = roc_auc_score(labels.cpu().numpy(), scores.cpu().numpy())
+            val_roc_auc = roc_auc_score(labels.cpu().numpy(),
+                                        scores.cpu().numpy())
     except Exception as e:
         print('Unexpected auc scores error')
     return val_roc_auc
 
-def test_render_labels():
-    images = Image.open('/data/lxd/datasets/2022-03-02-Eggs/OK/000445139_Egg6_(ok)_L_0_cam5.bmp')
-    images = to_tensor(images).reshape(1, 3, 700, 600)
-    images = render_labels(images, torch.tensor([[1, 0, 0, 0, 0, 0, 0, 0]]), torch.tensor([[1, 0, 0, 0, 0, 0, 0, 0]]))
-    save_image(images, os.path.join('test_results', 'test_render_label.jpeg'))
-    
 
-        
+def save_false_positive(hparams, current_epoch, scores_all, labels_all,
+                        filenames, output_dir):
+    prefix = f'{hparams.fold_i}-{current_epoch}'
+    fp_indexes = select_fn_indexes(scores_all, labels_all)
+    fp_filenames = filenames[fp_indexes]
+    fp_scores = torch.softmax(scores_all[fp_indexes], dim=1)
+    fp_labels = labels_all[fp_indexes]  # one-hot label, [n, num_classes]
+    fp_label_names = np.array(class_names)[torch.argmax(
+        fp_labels, dim=1).detach().cpu().numpy()]  # label name [n, 1]
+    fp_pred_names = np.array(class_names)[torch.argmax(
+        fp_scores, dim=1).detach().cpu().numpy()]  # label name [n, 1]
+    save_path = os.path.join(output_dir, f'{prefix}-fp.csv')
+    df = pd.DataFrame({
+        'filename': fp_filenames,
+        'label': fp_label_names,
+        'pred': fp_pred_names
+    })
+    fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
+                           columns=class_names)
+    fp_df = pd.concat([df, fp_pred], axis=1)
+    fp_df.to_csv(save_path, index=False)
+
+
+def generate_classification_report(hparams, current_epoch, scores_all,
+                                   labels_all, filenames, output_dir):
+    prefix = f'{hparams.fold_i}-{current_epoch}'
+    pred_save_path = os.path.join(output_dir, f'{prefix}-pred.csv')
+    scores = torch.softmax(scores_all, dim=1)
+    file_name_df = pd.DataFrame({
+        'filename': filenames,
+    })
+    score_df = pd.DataFrame(scores.detach().cpu().numpy(), columns=class_names)
+    gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
+                         columns=class_names)
+    pred_df = pd.concat([file_name_df, score_df], axis=1)
+    gt_df = pd.concat([file_name_df, gt_df], axis=1)
+    pred_df.to_csv(pred_save_path, index=False)
+    generate_report(pred_df, gt_df, prefix, output_dir)
+
+
+def post_report(hparams,
+                current_epoch,
+                scores_all,
+                labels_all,
+                filenames,
+                output_dir,
+                ger_report=False):
+    """ postprocessing classification results, producing classification report or 
+        saving false positive to the csv files.
+    Args:
+        scores_all (_type_): _description_
+        labels_all (_type_): _description_
+        filenames (_type_): _description_
+        output_dir (_type_): _description_
+    """
+    save_false_positive(hparams, current_epoch, scores_all, labels_all,
+                        filenames, output_dir)
+    if ger_report:
+        generate_classification_report(hparams, current_epoch, scores_all,
+                                       labels_all, filenames, output_dir)
+
+
+def cat_image_in_ddp(val_epoch_out_path, cat_epoch_out_path):
+    """In ddp mode, the each intermidiate output are saved by different processes. This function collect them and cat 
+    these images together for better visualization.
+    """
+    os.makedirs(cat_epoch_out_path, exist_ok=True)
+    filenames = os.listdir(val_epoch_out_path)
+    filenames = sorted(filenames)
+    for class_name in class_names:
+        imgs = []
+        for filename in filenames:
+            if filename.startswith(class_name):
+                img = cv2.imread(os.path.join(val_epoch_out_path, filename))
+                if img is None:
+                    continue
+                imgs.append(img)
+        if len(imgs):
+            imgs = cv2.vconcat(imgs)
+            cv2.imwrite(os.path.join(cat_epoch_out_path, f'{class_name}.jpeg'),
+                        imgs)
+
+
+def collect_distributed_info(outputs):
+    val_loss_mean = torch.stack([output["val_loss"]
+                                 for output in outputs]).mean()
+    data_load_times = torch.stack(
+        [output["data_load_time"] for output in outputs]).sum()
+    batch_run_times = torch.stack(
+        [output["batch_run_time"] for output in outputs]).sum()
+    scores_all = torch.cat([output["scores"] for output in outputs])
+    labels_all = torch.cat([output["labels"] for output in outputs])
+    val_roc_auc = get_roc_auc(labels_all, scores_all)
+    return DotMap({
+        'loss_mean': val_loss_mean,
+        'scores': scores_all,
+        'labels': labels_all,
+        'roc_auc': val_roc_auc,
+        'data_load_times': data_load_times,
+        'batch_run_times': batch_run_times
+    })
+
+
+def test_render_labels():
+    images = Image.open(
+        '/data/lxd/datasets/2022-03-02-Eggs/OK/000445139_Egg6_(ok)_L_0_cam5.bmp'
+    )
+    images = to_tensor(images).reshape(1, 3, 700, 600)
+    images = render_labels(images, torch.tensor([[1, 0, 0, 0, 0, 0, 0, 0]]),
+                           torch.tensor([[1, 0, 0, 0, 0, 0, 0, 0]]))
+    save_image(images, os.path.join('test_results', 'test_render_label.jpeg'))
+
 
 if __name__ == '__main__':
     pass
-
-        
-        
