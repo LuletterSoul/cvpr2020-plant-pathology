@@ -17,6 +17,7 @@ from torchcam.methods import SmoothGradCAMpp
 import pandas as pd
 from .report import *
 from .constant import *
+from pytorch_lightning.plugins import *
 
 class_label_to_name = {
     0: 'ok',
@@ -348,6 +349,16 @@ def collect_distributed_info(outputs):
         'data_load_times': data_load_times,
         'batch_run_times': batch_run_times
     })
+
+
+def get_training_strategy(hparams):
+    tm = hparams.training_mode
+    if tm == 'ddp':
+        return DDPPlugin(find_unused_parameters=False)
+    elif tm == 'ddp2':
+        return DDP2Plugin(find_unused_parameters=False)
+    elif tm == 'dp':
+        return DataParallelPlugin()
 
 
 def test_render_labels():

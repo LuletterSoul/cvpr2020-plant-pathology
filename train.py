@@ -29,9 +29,7 @@ from loss_function import CrossEntropyLossOneHot
 from lrs_scheduler import WarmRestart, warm_restart
 from utils.common import select_fn_indexes, visualization
 from PIL import Image
-from pytorch_lightning.plugins import *
 from utils import *
-import csv
 from pytorch_lightning.loggers import TensorBoardLogger
 
 
@@ -337,43 +335,6 @@ class CoolSystem(pl.LightningModule):
         }
 
 
-def get_training_strategy(hparams):
-    tm = hparams.training_mode
-    if tm == 'ddp':
-        return DDPPlugin(find_unused_parameters=False)
-    elif tm == 'ddp2':
-        return DDP2Plugin(find_unused_parameters=False)
-    elif tm == 'dp':
-        return DataParallelPlugin()
-
-
-def get_checkpoint_resume(hparams):
-    resume_from_checkpoint = hparams.resume_from_checkpoint
-    if not hparams.debug:
-        if hparams.fold_i in resume_from_checkpoint:
-            return resume_from_checkpoint[hparams.fold_i]
-        else:
-            return None
-    return None
-
-
-def get_real_world_test_dataloaders(hparams, transforms):
-    if 'test_real_world_set' not in hparams or hparams.test_real_world_set is None:
-        return []
-    test_paths = [
-        os.path.join(hparams.data_folder, filename)
-        for filename in os.listdir(hparams.data_folder)
-        if filename.startswith(hparams.test_real_world_set)
-        and filename.endswith('.csv')
-    ]
-    real_world_test_dataloaders = []
-    for filepath in test_paths[:hparams.test_real_world_num]:
-        test_data = pd.read_csv(filepath)
-        real_world_test_dataloaders.append(
-            generate_val_dataloaders(hparams, test_data, transforms))
-    return real_world_test_dataloaders
-
-
 if __name__ == "__main__":
     # Make experiment reproducible
     seed_reproducer(2022)
@@ -389,6 +350,9 @@ if __name__ == "__main__":
     try:
         for fold_i in range(5):
             hparams.fold_i = fold_i
+            if is_skip_current_fold(fold_i, hparams):
+                logger.info(f'Skipped fold {fold_i}')
+                continue
             da = ProjectDataModule(hparams)
             # Define callbacks
             checkpoint_path = os.path.join(hparams.log_dir, 'checkpoints')

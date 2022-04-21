@@ -47,4 +47,5 @@ norm:
     0.21203480660915375
   ]
 resume_from_checkpoint: /data2/lxd/project/cvpr2020-plant-pathology/logs_submit/20220420-1135-original/checkpoints
+skip_folds: [0, 1, 2, 3, 4]
 checkpoints: 
