@@ -494,7 +494,7 @@ class ProjectDataModule(pl.LightningDataModule):
         self.hparams.HEC_LOGGER.info(
             f'Pid {os.getpid()}, the batches of TEST dataloader {len(test_dataloader)}'
         )
-        return
+        return test_dataloader
 
 
 if __name__ == '__main__':

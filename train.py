@@ -19,7 +19,7 @@ from torchvision.transforms.functional import to_tensor
 import torch
 from torchcam.methods.gradient import SmoothGradCAMpp
 from datasets.dataset import generate_anchor_dataloaders, generate_test_dataloaders, generate_transforms, generate_dataloaders, generate_val_dataloaders, ProjectDataModule
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, classification_report
 from sklearn.model_selection import KFold
 
 # User defined libraries
@@ -47,22 +47,43 @@ class CoolSystem(pl.LightningModule):
         self.criterion = CrossEntropyLossOneHot()
         self.HEC_LOGGER = init_logger('HEC', hparams.log_dir)
 
+        # create directories for testing
         self.test_output_dir = os.path.join(hparams.log_dir,
                                             f'fold-{hparams.fold_i}', 'test')
+        os.makedirs(self.test_output_dir, exist_ok=True)
+        self.test_vis_output = os.path.join(self.test_output_dir, 'vis')
+        os.makedirs(self.test_vis_output, exist_ok=True)
+        self.test_cat_output = os.path.join(self.test_output_dir, 'cat')
+        os.makedirs(self.test_cat_output, exist_ok=True)
+
+        self.test_selection_record_path = os.path.join(
+            os.path.join(self.test_output_dir, 'selection.csv'))
+        self.test_performance_record_path = os.path.join(
+            self.test_output_dir, 'performance.csv')
+
+        self.test_selection_records = self.load_records(
+            self.test_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
+        self.test_performance_records = self.load_records(
+            self.test_performance_record_path, PERFORMANCE_RECORD_HEADERS)
+
+        # create directories for validation
         self.val_output_dir = os.path.join(hparams.log_dir,
                                            f'fold-{hparams.fold_i}', 'val')
-        os.makedirs(self.test_output_dir, exist_ok=True)
         os.makedirs(self.val_output_dir, exist_ok=True)
+        self.val_vis_output = os.path.join(self.val_output_dir, 'vis')
+        os.makedirs(self.val_vis_output, exist_ok=True)
+        self.val_cat_output = os.path.join(self.val_output_dir, 'cat')
+        os.makedirs(self.val_cat_output, exist_ok=True)
+        self.val_selection_record_path = os.path.join(
+            os.path.join(self.val_output_dir, 'selection.csv'))
+        self.val_performance_record_path = os.path.join(
+            self.val_output_dir, 'performance.csv')
 
-        self.vis_test_output = os.path.join(self.test_output_dir, 'vis')
-        self.vis_val_output = os.path.join(self.val_output_dir, 'vis')
-        os.makedirs(self.vis_val_output, exist_ok=True)
-        os.makedirs(self.vis_test_output, exist_ok=True)
+        self.val_selection_records = self.load_records(
+            self.val_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
+        self.val_performance_records = self.load_records(
+            self.val_performance_record_path, PERFORMANCE_RECORD_HEADERS)
 
-        self.cat_test_output = os.path.join(self.test_output_dir, 'cat')
-        self.cat_val_output = os.path.join(self.val_output_dir, 'cat')
-        os.makedirs(self.cat_val_output, exist_ok=True)
-        os.makedirs(self.cat_test_output, exist_ok=True)
         # self.cam_extractors = [SmoothGradCAMpp(self, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
         # self.cam_extractors = [
         #                         SmoothGradCAMpp(self, target_layer=f'model.model_ft.0'),
@@ -85,16 +106,24 @@ class CoolSystem(pl.LightningModule):
                 target_layer='model.model_ft.4.2.se_module'),
         ]
 
+    def load_records(self, record_path, columns):
+        if os.path.exists(record_path):
+            return pd.read_csv(record_path)
+        else:
+            df = pd.DataFrame(columns=columns)
+            df.to_csv(record_path, index=False)
+            return df
+
     def forward(self, x):
         return self.model(x)
 
-    def on_fit_start(self) -> None:
-        ckpt_path = get_checkpoint_resume(self.hparams)
-        if ckpt_path is not None:
-            meta = parse_checkpoint_meta_info(os.path.basename(ckpt_path))
-            for name, value in meta.items():
-                self.log(name, torch.tensor(value, dtype=torch.float))
-        return super().on_fit_start()
+    # def on_fit_start(self) -> None:
+    #     ckpt_path = get_checkpoint_resume(self.hparams)
+    #     if ckpt_path is not None:
+    #         meta = parse_checkpoint_meta_info(os.path.basename(ckpt_path))
+    #         for name, value in meta.items():
+    #             self.log(name, torch.tensor(value, dtype=torch.float))
+    #     return super().on_fit_start()
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.Adam(self.parameters(),
@@ -256,7 +285,7 @@ class CoolSystem(pl.LightningModule):
                               scores,
                               labels,
                               filenames,
-                              os.path.join(self.vis_val_output,
+                              os.path.join(self.val_vis_output,
                                            str(self.current_epoch)),
                               save_batch=False,
                               save_per_image=True,
@@ -290,9 +319,9 @@ class CoolSystem(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
 
-        vis_output_dir = os.path.join(self.vis_val_output,
+        vis_output_dir = os.path.join(self.val_vis_output,
                                       str(self.current_epoch))
-        cat_output_dir = os.path.join(self.cat_val_output,
+        cat_output_dir = os.path.join(self.val_cat_output,
                                       str(self.current_epoch))
         cat_image_in_ddp(vis_output_dir, cat_output_dir)
         # compute loss
@@ -311,6 +340,61 @@ class CoolSystem(pl.LightningModule):
 
         post_report(self.hparams, self.current_epoch, val_info.scores,
                     val_info.labels, val_info.filenames, self.val_output_dir)
+
+        try:
+            labels = np.argmax(val_info.labels.detach().cpu().numpy(), axis=1)
+            preds = np.argmax(val_info.scores.detach().cpu().numpy(), axis=1)
+            # labels = np.array([0, 1, 2, 3, 4, 5, 6, 7])
+            # preds = np.array([1, 0, 2, 4, 3, 5, 6, 7])
+
+            classification_results = classification_report(
+                labels, preds, target_names=CLASS_NAMES, output_dict=True)
+
+            selection_row = {
+                'Fold':
+                self.hparams.fold_i,
+                'Epoch':
+                self.current_epoch,
+                'Step':
+                self.global_step,
+                'Loss':
+                val_info.loss_mean.detach().cpu().numpy(),
+                'ROC_AUC':
+                val_info.roc_auc,
+                'Other_Loss':
+                other_loss.detach().cpu().numpy() if isinstance(
+                    other_loss, torch.Tensor) else other_loss,
+                'OTHER_ROC_AUC':
+                other_roc_auc
+            }
+
+            self.val_selection_records = self.val_selection_records.append(
+                selection_row, ignore_index=True)
+            self.val_selection_records.to_csv(self.val_selection_record_path,
+                                              index=False,
+                                              float_format='%.4f')
+
+            performance_row = {
+                'Fold': self.hparams.fold_i,
+                'Epoch': self.current_epoch,
+                'Step': self.global_step,
+            }
+
+            for class_name in CLASS_NAMES:
+                row = performance_row.copy()
+                row['class'] = class_name
+                for k, v in classification_results[class_name].items():
+                    row[k] = v
+                    if k == 'precision':
+                        row['in_precision'] = 1 - v
+                self.val_performance_records = self.val_performance_records.append(
+                    row, ignore_index=True)
+            self.val_performance_records.to_csv(
+                self.val_performance_record_path,
+                index=False,
+                float_format='%.4f')
+        except Exception as e:
+            traceback.print_exc()
 
         # terminal logs
         self.HEC_LOGGER.info(

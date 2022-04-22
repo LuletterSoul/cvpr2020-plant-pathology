@@ -1,9 +1,12 @@
 import shutil
 import numpy as np
 import os
-from sklearn import metrics
+from sklearn import metrics, datasets
 import pandas as pd
 from .constant import *
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 
 
 def save_csv_report(report, output_dir, class_names, pos_thresh=0.50):
@@ -37,6 +40,16 @@ def save_csv_confusion_matrix(confusion_matrix, output_dir, class_names):
     cm.insert(loc=0, column=' ', value=class_names)
     cm.to_csv(output_dir, index=False)
     return cm
+
+
+def vis_confusion_matrix(labels, scores, output_dir, display_labels):
+    metrics.ConfusionMatrixDisplay.from_predictions(
+        labels, scores, display_labels=display_labels)
+    plt.plot()
+    plt.show()
+    plt.savefig(output_dir)
+    plt.close()
+    plt.clf()
 
 
 def save_false_negative(data_folder, pred_data, gt_data, class_names,
@@ -126,11 +139,15 @@ def generate_report(pred_data, gt_data, pred_filename, output_dir):
                                     BN_CLASS_NAMES,
                                     pos_thresh=th)
         bn_reports.append(bn_report)
-        print(f'Report by positive threhold {th} saved into {bn_report_path}')
+        print(f'Report by positive threshold {th} saved into {bn_report_path}')
         # bn_reports['pos_threshold'] = th
         save_csv_confusion_matrix(
             th_confusion_matrix,
             os.path.join(th_output_dir, f'TH_CM_{pred_filename}_th_{th}.csv'),
+            BN_CLASS_NAMES)
+        vis_confusion_matrix(
+            bn_gt_labels, th_pred_labels,
+            os.path.join(th_output_dir, f'TH_CM_{pred_filename}_th_{th}.png'),
             BN_CLASS_NAMES)
         # except Exception as e:
         # print(f'Error while handling {th}')
@@ -161,6 +178,9 @@ def generate_report(pred_data, gt_data, pred_filename, output_dir):
     save_csv_confusion_matrix(
         confusion_matrix, os.path.join(output_dir, f'CM_{pred_filename}.csv'),
         CLASS_NAMES)
+    vis_confusion_matrix(gt_labels, pred_labels,
+                         os.path.join(output_dir, f'CM_{pred_filename}.png'),
+                         CLASS_NAMES)
 
     save_csv_report(bn_report,
                     os.path.join(output_dir, f'BN_Report_{pred_filename}.csv'),
@@ -168,7 +188,25 @@ def generate_report(pred_data, gt_data, pred_filename, output_dir):
     save_csv_confusion_matrix(
         bn_confusion_matrix,
         os.path.join(output_dir, f'BN_CM_{pred_filename}.csv'), BN_CLASS_NAMES)
+    vis_confusion_matrix(
+        bn_gt_labels, bn_pred_labels,
+        os.path.join(output_dir, f'BN_CM_{pred_filename}.png'), BN_CLASS_NAMES)
 
     # df = pd.DataFrame.from_dict(report)
     # df.to_csv(f'Report_{filename}.csv')
     # classification_report_csv(report, os.path.join('outputs',f'Report_{filename}.csv'))
+
+
+if __name__ == '__main__':
+    X, y = datasets.make_classification(n_samples=10000,
+                                        n_classes=8,
+                                        n_informative=8,
+                                        random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+    clf = SVC(random_state=0)
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    vis_confusion_matrix(y_test,
+                         y_pred,
+                         'test.png',
+                         display_labels=VIS_ALL_LABELS)

@@ -11,7 +11,6 @@ def get_checkpoint_resume(hparams):
 
 
 def get_the_lastest_fold(hparams):
-    print(hparams.resume_from_checkpoint.keys())
     return max(hparams.resume_from_checkpoint.keys())
 
 
@@ -22,6 +21,4 @@ def is_skip_current_fold(current_fold, hparams):
     if current_fold > get_the_lastest_fold(
             hparams) or current_fold not in folds:
         return False
-    if current_fold in folds:
-        return True
-    return False
+    return True

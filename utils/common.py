@@ -258,6 +258,8 @@ def save_false_positive(hparams, current_epoch, scores_all, labels_all,
         fp_labels, dim=1).detach().cpu().numpy()]  # label name [n, 1]
     fp_pred_names = np.array(CLASS_NAMES)[torch.argmax(
         fp_scores, dim=1).detach().cpu().numpy()]  # label name [n, 1]
+    output_dir = os.path.join(output_dir, 'fp')
+    os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f'{prefix}-fp.csv')
     df = pd.DataFrame({
         'filename': fp_filenames,
@@ -272,6 +274,8 @@ def save_false_positive(hparams, current_epoch, scores_all, labels_all,
 
 def generate_classification_report(hparams, current_epoch, scores_all,
                                    labels_all, filenames, output_dir):
+    output_dir = os.path.join(output_dir, 'report')
+    os.makedirs(output_dir, exist_ok=True)
     prefix = f'{hparams.fold_i}-{current_epoch}'
     pred_save_path = os.path.join(output_dir, f'{prefix}-pred.csv')
     scores = torch.softmax(scores_all, dim=1)

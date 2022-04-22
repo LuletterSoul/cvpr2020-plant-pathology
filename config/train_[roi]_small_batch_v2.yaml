@@ -9,9 +9,9 @@ test_real_world_num: 1
 num_classes: 8
 lr: 0.001
 train_transforms: a3
-train_batch_size: 12
-test_batch_size: 24
-val_batch_size: 24
+train_batch_size: 4
+test_batch_size: 12
+val_batch_size: 12
 train_num_workers: 8
 val_num_workers: 0
 test_num_workers: 8
@@ -24,18 +24,19 @@ seed: 2022
 min_epochs: 20
 max_epochs: 70
 patience: 20
-gpus: [0, 2, 3]
+gpus: [1]
 precision: 16
 gradient_clip_val: 0
 soft_labels_filename: ''
 log_dir: logs_submit
 sample_num: 6
-debug: false
-clean_debug: true
+debug: true
+clean_debug: false
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
 # resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220420-1307-roi/checkpoints
+# resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/202204221131-roi/checkpoints
 resume_from_checkpoint: 
 resume_from_the_last_fold: true
 skip_folds: [0, 1, 2, 3, 4]
