@@ -460,8 +460,12 @@ class ProjectDataModule(pl.LightningDataModule):
         train_data = self.data.iloc[
             self.fold_indexes[self.hparams.fold_i][0], :].reset_index(
                 drop=True)
-        return generate_train_dataloaders(self.hparams, train_data,
-                                          self.transforms)
+        train_dataloader = generate_train_dataloaders(self.hparams, train_data,
+                                                      self.transforms)
+        self.hparams.HEC_LOGGER.info(
+            f'Pid {os.getpid()}, the batches of TRAIN dataloader are {len(train_dataloader)}'
+        )
+        return train_dataloader
 
     def val_dataloader(self):
         seed_reproducer(2022)
@@ -474,13 +478,23 @@ class ProjectDataModule(pl.LightningDataModule):
                 drop=True)
         val_dataloader = generate_val_dataloaders(self.hparams, val_data,
                                                   self.transforms)
-        return [anchor_dataloader, val_dataloader
-                ] + real_world_test_dataloaders
+        val_dataloaders = [anchor_dataloader, val_dataloader
+                           ] + real_world_test_dataloaders
+        for idx, val_dataloader in enumerate(val_dataloaders):
+            self.hparams.HEC_LOGGER.info(
+                f'Pid {os.getpid()}, the batches of VAL dataloader {idx} are {len(val_dataloader)}'
+            )
+        return val_dataloaders
 
     def test_dataloader(self):
         seed_reproducer(2022)
-        return generate_test_dataloaders(self.hparams, self.test_data,
-                                         self.transforms)
+        test_dataloader = generate_test_dataloaders(self.hparams,
+                                                    self.test_data,
+                                                    self.transforms)
+        self.hparams.HEC_LOGGER.info(
+            f'Pid {os.getpid()}, the batches of TEST dataloader {len(test_dataloader)}'
+        )
+        return
 
 
 if __name__ == '__main__':

@@ -344,7 +344,7 @@ if __name__ == "__main__":
     # init logger
     logger = init_logger("HEC", log_dir=hparams.log_dir)
     tf_logger = TensorBoardLogger(os.path.join(hparams.log_dir))
-
+    hparams.HEC_LOGGER = logger
     # Do cross validation
     valid_roc_auc_scores = []
     try:
