@@ -298,7 +298,7 @@ def generate_val_dataloaders(hparams, val_data, transforms):
     # )
     val_dataloader = DataLoader(dataset,
                                 batch_size=hparams.val_batch_size,
-                                num_workers=hparams.num_workers,
+                                num_workers=hparams.val_num_workers,
                                 sampler=sampler)
     return val_dataloader
 
@@ -321,7 +321,7 @@ def generate_train_dataloaders(hparams, data, transforms):
     sampler = MySampler(dataset, shuffle=True, drop_last=True)
     dataloader = DataLoader(dataset,
                             batch_size=hparams.train_batch_size,
-                            num_workers=hparams.num_workers,
+                            num_workers=hparams.train_num_workers,
                             sampler=sampler)
     return dataloader
 
@@ -341,7 +341,7 @@ def generate_test_dataloaders(hparams, test_data, transforms):
         soft_labels_filename=hparams.soft_labels_filename)
     sampler = MySampler(dataset, shuffle=False, drop_last=True)
     dataloader = DataLoader(dataset,
-                            num_workers=hparams.num_workers,
+                            num_workers=hparams.test_num_workers,
                             batch_size=hparams.val_batch_size,
                             sampler=sampler)
     # dataloader = DataLoader(
@@ -363,7 +363,7 @@ def generate_anchor_dataloaders(hparams, test_data, transforms):
                         soft_labels_filename=hparams.soft_labels_filename)
     sampler = MySampler(dataset, shuffle=False, drop_last=True)
     dataloader = DataLoader(dataset,
-                            num_workers=hparams.num_workers,
+                            num_workers=0,
                             batch_size=hparams.sample_num,
                             sampler=sampler)
     # anchor_dataloader = DataLoader(
@@ -439,7 +439,7 @@ def get_real_world_test_dataloaders(hparams, transforms):
 class ProjectDataModule(pl.LightningDataModule):
 
     def __init__(self, hparams):
-        seed_reproducer(2022)
+        # seed_reproducer(2022)
         super().__init__()
         self.transforms = generate_transforms(hparams)
         self.hparams.update(hparams)
@@ -456,7 +456,7 @@ class ProjectDataModule(pl.LightningDataModule):
             self.fold_indexes[fold_i] = [train_index, val_index]
 
     def train_dataloader(self):
-        seed_reproducer(2022)
+        # seed_reproducer(2022)
         train_data = self.data.iloc[
             self.fold_indexes[self.hparams.fold_i][0], :].reset_index(
                 drop=True)
@@ -468,7 +468,7 @@ class ProjectDataModule(pl.LightningDataModule):
         return train_dataloader
 
     def val_dataloader(self):
-        seed_reproducer(2022)
+        # seed_reproducer(2022)
         anchor_dataloader = generate_anchor_dataloaders(
             self.hparams, self.test_data, self.transforms)
         real_world_test_dataloaders = get_real_world_test_dataloaders(
@@ -487,7 +487,7 @@ class ProjectDataModule(pl.LightningDataModule):
         return val_dataloaders
 
     def test_dataloader(self):
-        seed_reproducer(2022)
+        # seed_reproducer(2022)
         test_dataloader = generate_test_dataloaders(self.hparams,
                                                     self.test_data,
                                                     self.transforms)

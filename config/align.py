@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 import yaml
 import numpy as np
 import shutil
@@ -25,15 +26,20 @@ def merge(source_path, target_path):
 
 
 if __name__ == '__main__':
-    t1 = '/data/lxd/project/cvpr2020-plant-pathology/config/p1.yaml'
-    t2 = '/data/lxd/project/cvpr2020-plant-pathology/config/p2.yaml'
+    parser = ArgumentParser()
+    parser.add_argument('--tf',
+                        type=str,
+                        default='train_[roi]_small_batch_v2.yaml',
+                        help='config path')
+    args = parser.parse_args()
     config_filenames = [
         filename for filename in os.listdir('.')
         if filename.endswith('.yaml') and not os.path.isdir(filename)
     ]
     backup_path = 'backup'
     os.makedirs(backup_path, exist_ok=True)
-    target_filename = 'train_[original]_small_batch_v2.yaml'
+    # target_filename = 'train_[original]_small_batch_v2.yaml'
+    target_filename = args.tf
     shutil.copy(target_filename, backup_path)
     for filename in config_filenames:
         if filename == target_filename:
