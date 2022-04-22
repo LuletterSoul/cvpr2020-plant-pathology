@@ -298,8 +298,8 @@ class CoolSystem(pl.LightningModule):
         # compute loss
         # only process the main validation set.
         val_info = collect_distributed_info(outputs[1])
-        other_roc_auc = 0
-        other_loss = 0
+        other_roc_auc = 0.0
+        other_loss = 0.0
         if len(outputs) > 2:
             other_infos = [
                 collect_distributed_info(output) for output in outputs[2:]
