@@ -9,11 +9,11 @@ test_real_world_num: 1
 num_classes: 8
 lr: 0.001
 train_transforms: a2
-train_batch_size: 8
+train_batch_size: 12
 fold_i: 0
-val_batch_size: 32
+val_batch_size: 24
 anchor_batch_size: 6
-save_top_k: 5
+save_top_k: 6
 training_mode: ddp
 num_workers: 8
 image_size: [700, 600]
@@ -21,7 +21,7 @@ seed: 2022
 min_epochs: 20
 max_epochs: 70
 patience: 20
-gpus: [0, 1, 2, 3]
+gpus: [2, 3]
 precision: 16
 gradient_clip_val: 0
 soft_labels_filename: ''
@@ -39,4 +39,3 @@ test_batch_size: 24
 train_num_workers: 8
 val_num_workers: 0
 test_num_workers: 8
-resume_from_the_last_fold: true
