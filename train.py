@@ -400,7 +400,7 @@ if __name__ == "__main__":
             )
             early_stop_callback = EarlyStopping(monitor="val_roc_auc",
                                                 patience=hparams.patience,
-                                                mode="min",
+                                                mode="max",
                                                 verbose=True)
 
             # Instance Model, Trainer and train model
