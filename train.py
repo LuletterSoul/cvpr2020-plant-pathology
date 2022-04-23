@@ -397,9 +397,9 @@ if __name__ == "__main__":
                 filename=f"fold={fold_i}" +
                 "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_roc_auc:.4f}"
             )
-            early_stop_callback = EarlyStopping(monitor="val_loss",
+            early_stop_callback = EarlyStopping(monitor="val_roc_auc",
                                                 patience=hparams.patience,
-                                                mode="max",
+                                                mode="min",
                                                 verbose=True)
 
             # Instance Model, Trainer and train model

@@ -21,9 +21,9 @@ save_top_k: 6
 training_mode: ddp
 image_size: [224, 224]
 seed: 2022
-min_epochs: 30
+min_epochs: 10
 max_epochs: 70
-patience: 40
+patience: 10
 gpus: [0, 2, 3]
 precision: 16
 gradient_clip_val: 0
