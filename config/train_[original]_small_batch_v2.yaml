@@ -1,5 +1,5 @@
 backbone: se_resnext50_32x4d
-exp_name: original_224
+exp_name: original_224_bn_mAP
 description: set min epoch = 70, use early stopping, use a2 augmentation
 data_folder: /data2/lxd/datasets/2022-04-18-Eggs
 training_set: train.csv
@@ -32,7 +32,7 @@ clean_debug: true
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
-resume_from_checkpoint: /data2/lxd/project/cvpr2020-plant-pathology/logs_submit/202204231609-original_224/checkpoints
+resume_from_checkpoint: 
 skip_folds: [0, 1]
 checkpoints: null
 test_batch_size: 128
