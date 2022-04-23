@@ -27,7 +27,7 @@ debug: false
 norm:
   mean: [0.29655125737190247, 0.09730149805545807, 0.06337454915046692]
   std: [0.3412066698074341, 0.24394549429416656, 0.21203480660915375]
-resume_from_checkpoint: 
+resume_from_checkpoint: null
 checkpoints: [logs_submit/20220319-0212/checkpoints/fold=0-epoch=37-val_loss=0.2775-val_roc_auc=0.9872.ckpt]
 test_real_world_set: seed
 test_real_world_num: 1
@@ -40,3 +40,4 @@ train_num_workers: 16
 val_num_workers: 0
 test_num_workers: 8
 resume_from_the_last_fold: true
+metrics: mAP

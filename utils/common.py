@@ -1,6 +1,7 @@
 import traceback
 from dotmap import DotMap
-from sklearn.metrics import roc_auc_score
+# from sklearn.metrics import roc_auc_score
+from sklearn import metrics
 import torch
 import sys
 import os
@@ -234,25 +235,39 @@ def select_fn_indexes(pred, label):
     return fn_indexes
 
 
-def get_roc_auc(labels, scores):
+def get_roc_auc(hparams, labels, scores):
     class_num = labels.argmax(dim=1).unique()
-    val_roc_auc = 0
+    metric_scores = 0
+    label_class = labels.detach().cpu().numpy() # [n, num_classes], the second dim saves the one-hot vector.
+    pred_class = scores.detach().cpu().numpy() # [n, num_classes]
     try:
         if len(class_num) == 1:
-            val_roc_auc = torch.tensor(0)
+            metric_scores = torch.tensor(0)
         else:
             # print(labels)
             # label_class = np.argmax(labels.detach().cpu().numpy(), axis=1)
             # pred_class = np.argmax(scores.detach().cpu().numpy(), axis=1)
-            label_class = labels.detach().cpu().numpy()
-            pred_class = scores.detach().cpu().numpy()
-            val_roc_auc = roc_auc_score(label_class,
-                                        pred_class,
-                                        multi_class='ovo')
+            if hparams.metrics == 'roc_auc': 
+                metric_scores = metrics.roc_auc_score(label_class,
+                                            pred_class,
+                                            multi_class='ovo')
+            elif hparams.metrics == 'mAP':
+                metric_scores = metrics.average_precision_score(label_class,
+                                            pred_class)
+            elif hparams.metrics == 'bn_mAP':
+                # Convert one-hot to class label.
+                bn_labels = np.argmax(labels, axis=1)
+                bn_pred_labels = np.argmax(scores, axis=1)
+                bn_labels[bn_labels != 0] = 1
+                bn_pred_labels[bn_pred_labels != 0] = 1
+                metric_scores = metrics.average_precision_score(bn_labels,
+                                            bn_pred_labels)
+                
+
     except Exception as e:
         traceback.print_exc()
         print('Unexpected auc scores error')
-    return val_roc_auc
+    return metric_scores
 
 
 def save_false_positive(hparams, current_epoch, scores_all, labels_all,
@@ -345,7 +360,7 @@ def cat_image_in_ddp(val_epoch_out_path, cat_epoch_out_path):
                         imgs)
 
 
-def collect_distributed_info(outputs):
+def collect_distributed_info(hparams, outputs):
     val_loss_mean = torch.stack([output["loss"] for output in outputs]).mean()
     data_load_times = torch.stack(
         [output["data_load_time"] for output in outputs]).sum()
@@ -353,7 +368,7 @@ def collect_distributed_info(outputs):
         [output["batch_run_time"] for output in outputs]).sum()
     scores_all = torch.cat([output["scores"] for output in outputs])
     labels_all = torch.cat([output["labels"] for output in outputs])
-    val_roc_auc = get_roc_auc(labels_all, scores_all)
+    val_roc_auc = get_roc_auc(hparams, labels_all, scores_all)
     filenames = np.concatenate([output["filenames"] for output in outputs])
     # print(f'Pid {os.getpid()} sample filename, {filenames[0]}')
     return DotMap({
@@ -367,12 +382,12 @@ def collect_distributed_info(outputs):
     })
 
 
-def collect_other_distributed_info(outputs):
+def collect_other_distributed_info(hparams, outputs):
     other_roc_auc = 0.0
     other_loss = torch.tensor(0.0, dtype=torch.float)
     if len(outputs) > 2:
         other_infos = [
-            collect_distributed_info(output) for output in outputs[2:]
+            collect_distributed_info(hparams, output) for output in outputs[2:]
         ]
         other_loss = torch.stack([info.loss_mean
                                   for info in other_infos]).mean()

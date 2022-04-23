@@ -323,8 +323,8 @@ class CoolSystem(pl.LightningModule):
         cat_image_in_ddp(vis_output_dir, cat_output_dir)
         # compute loss
         # only process the main validation set.
-        val_info = collect_distributed_info(outputs[1])
-        other_info = collect_other_distributed_info(outputs)
+        val_info = collect_distributed_info(self.hparams,outputs[1])
+        other_info = collect_other_distributed_info(self.hparams, outputs)
 
         post_report(self.hparams, self.current_epoch, val_info.scores,
                     val_info.labels, val_info.filenames, self.val_output_dir)
