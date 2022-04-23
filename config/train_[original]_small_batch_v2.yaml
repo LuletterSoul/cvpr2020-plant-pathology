@@ -18,7 +18,7 @@ training_mode: ddp
 num_workers: 8
 image_size: [264, 224]
 seed: 2022
-min_epochs: 20
+min_epochs: 10
 max_epochs: 70
 patience: 10
 gpus: [2, 3]
