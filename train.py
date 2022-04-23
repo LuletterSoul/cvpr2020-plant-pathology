@@ -19,7 +19,6 @@ from torchvision.transforms.functional import to_tensor
 import torch
 from torchcam.methods.gradient import SmoothGradCAMpp
 from datasets.dataset import generate_anchor_dataloaders, generate_test_dataloaders, generate_transforms, generate_dataloaders, generate_val_dataloaders, ProjectDataModule
-from sklearn.metrics import roc_auc_score, classification_report
 from sklearn.model_selection import KFold
 
 # User defined libraries
@@ -78,12 +77,10 @@ class CoolSystem(pl.LightningModule):
             os.path.join(self.val_output_dir, 'selection.csv'))
         self.val_performance_record_path = os.path.join(
             self.val_output_dir, 'performance.csv')
-
         self.val_selection_records = self.load_records(
             self.val_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
         self.val_performance_records = self.load_records(
             self.val_performance_record_path, PERFORMANCE_RECORD_HEADERS)
-
         # self.cam_extractors = [SmoothGradCAMpp(self, target_layer=f'model.model_ft.{i}.0.downsample') for i in range(1, 5)]
         # self.cam_extractors = [
         #                         SmoothGradCAMpp(self, target_layer=f'model.model_ft.0'),
@@ -327,95 +324,37 @@ class CoolSystem(pl.LightningModule):
         # compute loss
         # only process the main validation set.
         val_info = collect_distributed_info(outputs[1])
-        other_roc_auc = 0.0
-        other_loss = 0.0
-        if len(outputs) > 2:
-            other_infos = [
-                collect_distributed_info(output) for output in outputs[2:]
-            ]
-            other_loss = torch.stack([info.loss_mean
-                                      for info in other_infos]).mean()
-            other_roc_auc = np.array([info.roc_auc
-                                      for info in other_infos]).mean()
+        other_info = collect_other_distributed_info(outputs)
 
         post_report(self.hparams, self.current_epoch, val_info.scores,
                     val_info.labels, val_info.filenames, self.val_output_dir)
 
-        try:
-            labels = np.argmax(val_info.labels.detach().cpu().numpy(), axis=1)
-            preds = np.argmax(val_info.scores.detach().cpu().numpy(), axis=1)
-            # labels = np.array([0, 1, 2, 3, 4, 5, 6, 7])
-            # preds = np.array([1, 0, 2, 4, 3, 5, 6, 7])
-
-            classification_results = classification_report(
-                labels, preds, target_names=CLASS_NAMES, output_dict=True)
-
-            selection_row = {
-                'Fold':
-                self.hparams.fold_i,
-                'Epoch':
-                self.current_epoch,
-                'Step':
-                self.global_step,
-                'Loss':
-                val_info.loss_mean.detach().cpu().numpy(),
-                'ROC_AUC':
-                val_info.roc_auc,
-                'Other_Loss':
-                other_loss.detach().cpu().numpy() if isinstance(
-                    other_loss, torch.Tensor) else other_loss,
-                'OTHER_ROC_AUC':
-                other_roc_auc
-            }
-
-            self.val_selection_records = self.val_selection_records.append(
-                selection_row, ignore_index=True)
-            self.val_selection_records.to_csv(self.val_selection_record_path,
-                                              index=False,
-                                              float_format='%.4f')
-
-            performance_row = {
-                'Fold': self.hparams.fold_i,
-                'Epoch': self.current_epoch,
-                'Step': self.global_step,
-            }
-
-            for class_name in CLASS_NAMES:
-                row = performance_row.copy()
-                row['class'] = class_name
-                for k, v in classification_results[class_name].items():
-                    row[k] = v
-                    if k == 'precision':
-                        row['in_precision'] = 1 - v
-                self.val_performance_records = self.val_performance_records.append(
-                    row, ignore_index=True)
-            self.val_performance_records.to_csv(
-                self.val_performance_record_path,
-                index=False,
-                float_format='%.4f')
-        except Exception as e:
-            traceback.print_exc()
-
+        write_distributed_records(self.global_rank, self.hparams.fold_i,
+                                  self.current_epoch, self.global_step,
+                                  val_info, other_info,
+                                  self.val_selection_record_path,
+                                  self.val_performance_record_path)
         # terminal logs
         self.HEC_LOGGER.info(
+            f"Rank {self.global_rank} |"
             f"{self.hparams.fold_i}-{self.current_epoch} | "
             f"lr : {self.scheduler.get_lr()[0]:.6f} | "
             f"val_loss : {val_info.loss_mean:.4f} | "
             f"val_roc_auc : {val_info.roc_auc:.4f} | "
-            f"other_loss : {other_loss:.4f} | "
-            f"other_roc_auc : {other_roc_auc:.4f} | "
+            f"other_loss : {other_info.loss_mean:.4f} | "
+            f"other_roc_auc : {other_info.roc_auc:.4f} | "
             f"data_load_times : {val_info.data_load_times:.2f} | "
             f"batch_run_times : {val_info.batch_run_times:.2f}")
         # must return key -> val_loss
         self.log('val_loss', val_info.loss_mean)
         self.log('val_roc_auc', val_info.roc_auc)
-        self.log('other_roc_auc', other_roc_auc)
-        self.log('other_loss', other_loss)
+        self.log('other_roc_auc', other_info.roc_auc)
+        self.log('other_loss', other_info.loss_mean)
         return {
             "val_loss": val_info.loss_mean,
             "val_roc_auc": val_info.roc_auc,
-            "other_roc_auc": other_roc_auc,
-            "other_loss": other_loss
+            "other_roc_auc": other_info.roc_auc,
+            "other_loss": other_info.loss_mean
         }
 
 
@@ -465,8 +404,8 @@ if __name__ == "__main__":
 
             # Instance Model, Trainer and train model
             model = CoolSystem(hparams)
-            if hparams.debug:
-                print(model)
+            # if hparams.debug:
+            # print(model)
             trainer = pl.Trainer(
                 logger=tf_logger,
                 replace_sampler_ddp=False,

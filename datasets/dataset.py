@@ -269,6 +269,9 @@ def generate_transforms(hparams):
     elif hparams.train_transforms == 'a3':
         train_transform = a3_transforms(hparams)
         val_transform = a4_transforms(hparams)
+    elif hparams.train_transforms == 'a4':
+        train_transform = a4_transforms(hparams)
+        val_transform = a4_transforms(hparams)
     tensor_transform = transforms.Compose(
         [transforms.Resize(size=hparams.image_size),
          transforms.ToTensor()])
@@ -299,6 +302,7 @@ def generate_val_dataloaders(hparams, val_data, transforms):
     val_dataloader = DataLoader(dataset,
                                 batch_size=hparams.val_batch_size,
                                 num_workers=hparams.val_num_workers,
+                                pin_memory=True,
                                 sampler=sampler)
     return val_dataloader
 
@@ -322,6 +326,7 @@ def generate_train_dataloaders(hparams, data, transforms):
     dataloader = DataLoader(dataset,
                             batch_size=hparams.train_batch_size,
                             num_workers=hparams.train_num_workers,
+                            pin_memory=True,
                             sampler=sampler)
     return dataloader
 
@@ -343,6 +348,7 @@ def generate_test_dataloaders(hparams, test_data, transforms):
     dataloader = DataLoader(dataset,
                             num_workers=hparams.test_num_workers,
                             batch_size=hparams.val_batch_size,
+                            pin_memory=True,
                             sampler=sampler)
     # dataloader = DataLoader(
     #     test_dataset,

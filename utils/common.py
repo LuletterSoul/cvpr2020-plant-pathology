@@ -1,3 +1,4 @@
+import traceback
 from dotmap import DotMap
 from sklearn.metrics import roc_auc_score
 import torch
@@ -18,6 +19,7 @@ import pandas as pd
 from .report import *
 from .constant import *
 from pytorch_lightning.plugins import *
+from sklearn.metrics import roc_auc_score, classification_report
 
 class_label_to_name = {
     0: 'ok',
@@ -240,8 +242,9 @@ def get_roc_auc(labels, scores):
             val_roc_auc = torch.tensor(0)
         else:
             # print(labels)
-            val_roc_auc = roc_auc_score(labels.cpu().numpy(),
-                                        scores.cpu().numpy())
+            label_class = torch.argmax(labels, dim=1).detach().cpu().numpy()
+            pred_class = torch.argmax(scores, dim=1).detach().cpu().numpy()
+            val_roc_auc = roc_auc_score(label_class, pred_class)
     except Exception as e:
         print('Unexpected auc scores error')
     return val_roc_auc
@@ -269,7 +272,10 @@ def save_false_positive(hparams, current_epoch, scores_all, labels_all,
     fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
                            columns=CLASS_NAMES)
     fp_df = pd.concat([df, fp_pred], axis=1)
-    fp_df.to_csv(save_path, index=False)
+    if not os.path.exists(save_path):
+        fp_df.to_csv(save_path, index=False)
+    else:
+        fp_df.to_csv(save_path, index=False, mode='a', header=False)
 
 
 def generate_classification_report(hparams, current_epoch, scores_all,
@@ -344,6 +350,7 @@ def collect_distributed_info(outputs):
     labels_all = torch.cat([output["labels"] for output in outputs])
     val_roc_auc = get_roc_auc(labels_all, scores_all)
     filenames = np.concatenate([output["filenames"] for output in outputs])
+    print(f'Pid {os.getpid()} sample filename, {filenames[0]}')
     return DotMap({
         'loss_mean': val_loss_mean,
         'scores': scores_all,
@@ -353,6 +360,72 @@ def collect_distributed_info(outputs):
         'data_load_times': data_load_times,
         'batch_run_times': batch_run_times
     })
+
+
+def collect_other_distributed_info(outputs):
+    other_roc_auc = 0.0
+    other_loss = torch.tensor(0.0, dtype=torch.float)
+    if len(outputs) > 2:
+        other_infos = [
+            collect_distributed_info(output) for output in outputs[2:]
+        ]
+        other_loss = torch.stack([info.loss_mean
+                                  for info in other_infos]).mean()
+        other_roc_auc = np.array([info.roc_auc for info in other_infos]).mean()
+    return DotMap({'loss_mean': other_loss, 'roc_auc': other_roc_auc})
+
+
+def write_distributed_records(global_rank, fold, epoch, step, val_info,
+                              other_info, selection_record_path,
+                              performance_record_path):
+    try:
+        labels = np.argmax(val_info.labels.detach().cpu().numpy(), axis=1)
+        preds = np.argmax(val_info.scores.detach().cpu().numpy(), axis=1)
+        # labels = np.array([0, 1, 2, 3, 4, 5, 6, 7])
+        # preds = np.array([1, 0, 2, 4, 3, 5, 6, 7])
+        classification_results = classification_report(
+            labels, preds, target_names=CLASS_NAMES, output_dict=True)
+
+        base_row = {
+            'Rank': global_rank,
+            'Fold': fold,
+            'Epoch': epoch,
+            'Step': step,
+        }
+
+        selection_row = {
+            **base_row, 'Loss': val_info.loss_mean.detach().cpu().numpy(),
+            'ROC_AUC': val_info.roc_auc,
+            'Other_Loss': other_info.loss_mean.detach().cpu().numpy(),
+            'OTHER_ROC_AUC': other_info.roc_auc
+        }
+
+        new_selection_record = pd.DataFrame([selection_row])
+
+        new_selection_record.to_csv(selection_record_path,
+                                    mode='a',
+                                    header=False,
+                                    index=False,
+                                    float_format='%.4f')
+        new_performance_records = []
+        for class_name in CLASS_NAMES:
+            row = base_row.copy()
+            row['class'] = class_name
+            for k, v in classification_results[class_name].items():
+                row[k] = v
+                if k == 'precision':
+                    row['in_precision'] = 1 - v
+            # self.val_performance_records = self.val_performance_records.append(
+            # row, ignore_index=True)
+            new_performance_records.append(row)
+        new_performance_records = pd.DataFrame(new_performance_records)
+        new_performance_records.to_csv(performance_record_path,
+                                       mode='a',
+                                       header=False,
+                                       index=False,
+                                       float_format='%.4f')
+    except Exception as e:
+        traceback.print_exc()
 
 
 def get_training_strategy(hparams):
