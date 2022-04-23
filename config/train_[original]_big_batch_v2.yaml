@@ -1,43 +1,42 @@
 backbone: se_resnext50_32x4d
 exp_name: original_224
-description: set min epoch = 70, use early stopping, use a2 augmentation
-data_folder: /data2/lxd/datasets/2022-04-18-Eggs
+description: original
+data_folder: /data/lxd/datasets/2022-04-18-Eggs
 training_set: train.csv
 test_set: test.csv
-test_real_world_set: seed
-test_real_world_num: 1
 num_classes: 8
 lr: 0.001
 train_transforms: a2
-train_batch_size: 112
+train_batch_size: 256
 fold_i: 0
 val_batch_size: 128
 anchor_batch_size: 6
-save_top_k: 6
 training_mode: ddp
 num_workers: 8
 image_size: [264, 224]
 seed: 2022
 min_epochs: 10
 max_epochs: 70
-patience: 10
-gpus: [2, 3]
+gpus: [0, 1]
 precision: 16
 gradient_clip_val: 0
 soft_labels_filename: ''
 log_dir: logs_submit
 sample_num: 6
 debug: false
-clean_debug: true
 norm:
-  # mean: [0.29655125737190247, 0.09730149805545807, 0.06337454915046692]
-  # std: [0.3412066698074341, 0.24394549429416656, 0.21203480660915375]
-  mean: [0, 0, 0]
-  std: [1, 1, 1]
-resume_from_checkpoint: null
+  mean: [0.29655125737190247, 0.09730149805545807, 0.06337454915046692]
+  std: [0.3412066698074341, 0.24394549429416656, 0.21203480660915375]
+resume_from_checkpoint: 
+checkpoints: [logs_submit/20220319-0212/checkpoints/fold=0-epoch=37-val_loss=0.2775-val_roc_auc=0.9872.ckpt]
+test_real_world_set: seed
+test_real_world_num: 1
+save_top_k: 5
+patience: 10
+clean_debug: true
 skip_folds: [0, 1, 2, 3, 4]
-checkpoints: null
 test_batch_size: 128
 train_num_workers: 16
 val_num_workers: 0
 test_num_workers: 8
+resume_from_the_last_fold: true
