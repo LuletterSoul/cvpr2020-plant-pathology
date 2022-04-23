@@ -13,7 +13,7 @@ HEADER_NAMES = ['filename'] + CLASS_NAMES
 
 THRESH = [0.9, 0.8, 0.7, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
 
-BASE_HEADERS = ['Rank', 'Fold', 'Epoch', 'Step']
+BASE_HEADERS = ['Fold', 'Rank', 'Epoch', 'Step']
 
 MODEL_SELECTION_RECORD_HEADERS = BASE_HEADERS + [
     'Loss', 'ROC_AUC', 'Other_Loss', 'OTHER_ROC_AUC'

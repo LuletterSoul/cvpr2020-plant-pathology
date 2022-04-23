@@ -242,10 +242,15 @@ def get_roc_auc(labels, scores):
             val_roc_auc = torch.tensor(0)
         else:
             # print(labels)
-            label_class = torch.argmax(labels, dim=1).detach().cpu().numpy()
-            pred_class = torch.argmax(scores, dim=1).detach().cpu().numpy()
-            val_roc_auc = roc_auc_score(label_class, pred_class)
+            # label_class = np.argmax(labels.detach().cpu().numpy(), axis=1)
+            # pred_class = np.argmax(scores.detach().cpu().numpy(), axis=1)
+            label_class = labels.detach().cpu().numpy()
+            pred_class = scores.detach().cpu().numpy()
+            val_roc_auc = roc_auc_score(label_class,
+                                        pred_class,
+                                        multi_class='ovo')
     except Exception as e:
+        traceback.print_exc()
         print('Unexpected auc scores error')
     return val_roc_auc
 
@@ -350,7 +355,7 @@ def collect_distributed_info(outputs):
     labels_all = torch.cat([output["labels"] for output in outputs])
     val_roc_auc = get_roc_auc(labels_all, scores_all)
     filenames = np.concatenate([output["filenames"] for output in outputs])
-    print(f'Pid {os.getpid()} sample filename, {filenames[0]}')
+    # print(f'Pid {os.getpid()} sample filename, {filenames[0]}')
     return DotMap({
         'loss_mean': val_loss_mean,
         'scores': scores_all,
@@ -387,8 +392,8 @@ def write_distributed_records(global_rank, fold, epoch, step, val_info,
             labels, preds, target_names=CLASS_NAMES, output_dict=True)
 
         base_row = {
-            'Rank': global_rank,
             'Fold': fold,
+            'Rank': global_rank,
             'Epoch': epoch,
             'Step': step,
         }
