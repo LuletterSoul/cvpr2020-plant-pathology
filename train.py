@@ -375,7 +375,8 @@ if __name__ == "__main__":
             if is_skip_current_fold(fold_i, hparams):
                 logger.info(f'Skipped fold {fold_i}')
                 continue
-            tf_logger = TensorBoardLogger(os.path.join(hparams.log_dir, str(fold_i)))
+            tf_logger = TensorBoardLogger(
+                os.path.join(hparams.log_dir, f'fold-{fold_i}'))
             da = ProjectDataModule(hparams)
             # Define callbacks
             checkpoint_path = os.path.join(hparams.log_dir, 'checkpoints')
