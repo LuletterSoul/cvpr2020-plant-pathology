@@ -192,6 +192,7 @@ def a1_transforms(hparams):
 
 def a2_transforms(hparams):
     return Compose([
+        Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
         RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
         OneOf([
             MotionBlur(blur_limit=(3, 5)),
@@ -214,7 +215,6 @@ def a2_transforms(hparams):
                   max_pixel_value=255.0,
                   p=1.0),
     ])
-
 
 def a3_transforms(hparams):
     return Compose([
