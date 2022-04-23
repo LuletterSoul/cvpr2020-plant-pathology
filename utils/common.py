@@ -256,8 +256,8 @@ def get_roc_auc(hparams, labels, scores):
                                             pred_class)
             elif hparams.metrics == 'bn_mAP':
                 # Convert one-hot to class label.
-                bn_labels = np.argmax(labels, axis=1)
-                bn_pred_labels = np.argmax(scores, axis=1)
+                bn_labels = np.argmax(label_class, axis=1)
+                bn_pred_labels = np.argmax(pred_class, axis=1)
                 bn_labels[bn_labels != 0] = 1
                 bn_pred_labels[bn_pred_labels != 0] = 1
                 metric_scores = metrics.average_precision_score(bn_labels,
