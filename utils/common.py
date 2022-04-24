@@ -1,5 +1,7 @@
+import pdb
 import traceback
 from dotmap import DotMap
+from matplotlib.pyplot import axis
 # from sklearn.metrics import roc_auc_score
 from sklearn import metrics
 import torch
@@ -20,6 +22,7 @@ import pandas as pd
 from .report import *
 from .constant import *
 from pytorch_lightning.plugins import *
+from pytorch_lightning.strategies import *
 from sklearn.metrics import roc_auc_score, classification_report
 
 class_label_to_name = {
@@ -285,9 +288,9 @@ def save_false_positive(hparams, current_epoch, scores_all, labels_all,
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f'{prefix}-fp.csv')
     df = pd.DataFrame({
-        'filename': fp_filenames,
-        'label': fp_label_names,
-        'pred': fp_pred_names
+        'filename': fp_filenames.reshape(-1),
+        'label': fp_label_names.reshape(-1),
+        'pred': fp_pred_names.reshape(-1)
     })
     fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
                            columns=CLASS_NAMES)
@@ -304,11 +307,11 @@ def generate_classification_report(hparams, current_epoch, scores_all,
     os.makedirs(output_dir, exist_ok=True)
     prefix = f'{hparams.fold_i}-{current_epoch}'
     pred_save_path = os.path.join(output_dir, f'{prefix}-pred.csv')
-    scores = torch.softmax(scores_all, dim=1)
+    # scores = torch.softmax(scores_all, dim=1)
     file_name_df = pd.DataFrame({
         'filename': filenames,
     })
-    score_df = pd.DataFrame(scores.detach().cpu().numpy(), columns=CLASS_NAMES)
+    score_df = pd.DataFrame(scores_all.detach().cpu().numpy(), columns=CLASS_NAMES)
     gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
                          columns=CLASS_NAMES)
     pred_df = pd.concat([file_name_df, score_df], axis=1)
@@ -373,7 +376,7 @@ def collect_distributed_info(hparams, outputs):
     # print(f'Pid {os.getpid()} sample filename, {filenames[0]}')
     return DotMap({
         'loss_mean': val_loss_mean,
-        'scores': scores_all,
+        'scores': torch.softmax(scores_all, axis=1),
         'labels': labels_all,
         'filenames': filenames,
         'roc_auc': val_roc_auc,
@@ -382,10 +385,10 @@ def collect_distributed_info(hparams, outputs):
     })
 
 
-def collect_other_distributed_info(hparams, outputs):
+def collect_other_distributed_info(hparams, outputs, created=True):
     other_roc_auc = 0.0
     other_loss = torch.tensor(0.0, dtype=torch.float)
-    if len(outputs) > 2:
+    if len(outputs) > 2 and created:
         other_infos = [
             collect_distributed_info(hparams, output) for output in outputs[2:]
         ]
@@ -451,11 +454,11 @@ def write_distributed_records(global_rank, fold, epoch, step, val_info,
 def get_training_strategy(hparams):
     tm = hparams.training_mode
     if tm == 'ddp':
-        return DDPPlugin(find_unused_parameters=False)
+        return DDPStrategy(find_unused_parameters=False)
     elif tm == 'ddp2':
-        return DDP2Plugin(find_unused_parameters=False)
+        return DDP2Strategy(find_unused_parameters=False)
     elif tm == 'dp':
-        return DataParallelPlugin()
+        return DataParallelStrategy()
 
 
 def test_render_labels():

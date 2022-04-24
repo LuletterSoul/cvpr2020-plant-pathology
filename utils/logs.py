@@ -21,7 +21,8 @@ import torch
 from dotmap import DotMap
 from os.path import dirname
 from pytorch_lightning import seed_everything
-
+from pytorch_lightning.loggers.base import LightningLoggerBase
+from pytorch_lightning.utilities.distributed import rank_zero_only
 IMG_SHAPE = (700, 600, 3)
 IMAGE_FOLDER = "data/images"
 NPY_FOLDER = "/home/public_data_center/kaggle/plant_pathology_2020/npys"
@@ -359,3 +360,28 @@ def read_image(image_path):
         48.7 ms ± 2.24 ms -> plt.imread(image_path)
     """
     return cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
+
+class TerminalLogger(LightningLoggerBase):
+
+    @property
+    def name(self):
+        return "TerminalLogger"
+
+    @property
+    def version(self):
+        # Return the experiment version, int or str.
+        return "1.0"
+
+
+    @rank_zero_only
+    def log_metrics(self, metrics, step):
+        # metrics is a dictionary of metric names and values
+        # your code to record metrics goes here
+        pass
+
+
+    @rank_zero_only
+    def finalize(self, status):
+        # Optional. Any code that needs to be run after training
+        # finishes goes here
+        pass

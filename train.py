@@ -5,9 +5,11 @@
 # Standard libraries
 import os
 import gc
+from pathlib import Path
 from pydoc import classname
 from time import time
 import traceback
+from typing import Dict
 import numpy as np
 import time as ts
 from pandas import DataFrame
@@ -30,6 +32,23 @@ from utils.common import select_fn_indexes, visualization
 from PIL import Image
 from utils import *
 from pytorch_lightning.loggers import TensorBoardLogger
+from torchmetrics import AveragePrecision, AUROC
+from torch import Tensor, embedding
+
+class BinaryAveragePrecision(AveragePrecision):
+    def __init__(self, num_classes: Optional[int] = None, pos_label: Optional[int] = None, average: Optional[str] = "macro", compute_on_step: Optional[bool] = None, **kwargs: Dict[str, Any]) -> None:
+        super().__init__(num_classes, pos_label, average, compute_on_step, **kwargs)
+    
+    def binarization(self, label: Tensor) -> None:
+        return torch.cat(
+        [label[:, [0]], label[:, 1:].sum(axis=1, keepdim=True)],
+        axis=1)
+    
+    def update(self, preds: Tensor, target: Tensor) -> None:
+        preds = self.binarization(preds)
+        target = self.binarization(target)
+        return super().update(preds, target)
+    
 
 
 class CoolSystem(pl.LightningModule):
@@ -59,6 +78,12 @@ class CoolSystem(pl.LightningModule):
             os.path.join(self.test_output_dir, 'selection.csv'))
         self.test_performance_record_path = os.path.join(
             self.test_output_dir, 'performance.csv')
+
+        self.test_pred_path = os.path.join(self.test_output_dir, 'pred.csv')
+        self.test_label_path = os.path.join(self.test_output_dir, 'label.csv')
+        self.test_pred = self.create_empty_csv(self.test_pred_path, HEADER_NAMES)
+        self.test_label = self.create_empty_csv(self.test_label_path, HEADER_NAMES)
+        
 
         self.test_selection_records = self.load_records(
             self.test_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
@@ -103,6 +128,14 @@ class CoolSystem(pl.LightningModule):
                 target_layer='model.model_ft.4.2.se_module'),
         ]
 
+        if self.hparams.metrics == 'roc_auc':
+            self.metric = AUROC(num_classes=self.hparams.num_classes)
+        elif self.hparams.metrics == 'mAP':
+            self.metric = AveragePrecision(num_classes=self.hparams.num_classes)
+        elif self.hparams.metrics == 'bn_mAP':
+            self.metric = BinaryAveragePrecision(pos_label=0)
+            
+
     def load_records(self, record_path, columns):
         if os.path.exists(record_path):
             return pd.read_csv(record_path)
@@ -110,6 +143,15 @@ class CoolSystem(pl.LightningModule):
             df = pd.DataFrame(columns=columns)
             df.to_csv(record_path, index=False)
             return df
+
+    def create_empty_csv(self, record_path, columns):
+        if os.path.exists(record_path):
+            os.remove(record_path)
+        df = pd.DataFrame(columns=columns)
+        df.to_csv(record_path, index=False)
+        return df
+
+
 
     def forward(self, x):
         return self.model(x)
@@ -220,6 +262,21 @@ class CoolSystem(pl.LightningModule):
         data_load_time = torch.sum(data_load_time)
         scores = self(images)
         loss = self.criterion(scores, labels)
+
+        np_scores = torch.softmax(scores, dim=1).detach().cpu().numpy()
+        np_labels = labels.detach().cpu().numpy()
+        np_scores = pd.DataFrame(np.concatenate([np.array(filenames).reshape(-1, 1), np_scores], axis=1))
+        np_labels = pd.DataFrame(np.concatenate([np.array(filenames).reshape(-1, 1), np_labels], axis=1))
+
+        np_scores.to_csv(self.test_pred_path,
+                                       mode='a',
+                                       header=False,
+                                       index=False)
+
+        np_labels.to_csv(self.test_label_path,
+                                       mode='a',
+                                       header=False,
+                                       index=False)
         return {
             "filenames":
             np.array(filenames),
@@ -238,24 +295,35 @@ class CoolSystem(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         # compute loss
-        test_info = collect_distributed_info(outputs)
-        post_report(self.hparams,
-                    self.current_epoch,
-                    test_info.scores,
-                    test_info.labels,
-                    test_info.filenames,
-                    self.test_output_dir,
-                    ger_report=True)
+        test_info = collect_distributed_info(self.hparams, outputs)
+        other_info = collect_other_distributed_info(self.hparams, outputs, created=False)
+        if self.global_rank == 0:
+            preds = pd.read_csv(self.test_pred_path)
+            labels = pd.read_csv(self.test_label_path)
+            preds = preds.sort_values(by=['filename'])
+            labels = labels.sort_values(by=['filename'])
+            assert len(preds) == len(labels)
+            post_report(self.hparams,
+                        self.current_epoch,
+                        torch.from_numpy(preds.iloc[:, 1:].to_numpy()),
+                        torch.from_numpy(labels.iloc[:, 1:].to_numpy()),
+                        preds.iloc[:, [0]].to_numpy().reshape(-1), 
+                        self.test_output_dir,
+                        ger_report=True)
         # test_roc_auc = get_roc_auc(labels_all, scores_all)
         self.HEC_LOGGER.info(
             f"{self.hparams.fold_i}-{self.current_epoch} | "
-            f"lr : {self.scheduler.get_lr()[0]:.6f} | "
             f"test_loss : {test_info.loss_mean:.4f} | "
             f"test_roc_auc : {test_info.roc_auc:.4f} | "
             f"data_load_times : {test_info.data_load_times:.2f} | "
             f"batch_run_times : {test_info.batch_run_times:.2f}")
-        self.log('test_loss', test_info.test_loss_mean)
-        self.log('test_roc_auc', test_info.test_roc_auc)
+        # self.log('test_loss', test_info.test_loss_mean)
+        # self.log('test_roc_auc', test_info.test_roc_auc)
+        write_distributed_records(self.global_rank, self.hparams.fold_i,
+                                  self.current_epoch, self.global_step,
+                                  test_info, other_info,
+                                  self.test_selection_record_path,
+                                  self.test_performance_record_path)
         return {
             "test_loss": test_info.loss_mean,
             "test_roc_auc": test_info.roc_auc
@@ -296,6 +364,11 @@ class CoolSystem(pl.LightningModule):
             data_load_time = torch.sum(data_load_time)
             scores = self(images)
             loss = self.criterion(scores, labels)
+            # self.metric(scores, labels)
+            # self.log('val_loss', loss, on_step=False, on_epoch=True)
+            # self.log('val_roc_auc', self.metric, on_step=False,on_epoch=True)
+            # self.log('other_roc_auc', other_info.roc_auc)
+            # self.log('other_loss', other_info.loss_mean)
 
         # must return key -> val_loss
         return {
@@ -323,6 +396,7 @@ class CoolSystem(pl.LightningModule):
         cat_image_in_ddp(vis_output_dir, cat_output_dir)
         # compute loss
         # only process the main validation set.
+        self.logger.log_metrics
         val_info = collect_distributed_info(self.hparams,outputs[1])
         other_info = collect_other_distributed_info(self.hparams, outputs)
 
@@ -370,7 +444,7 @@ if __name__ == "__main__":
     # Do cross validation
     valid_roc_auc_scores = []
     try:
-        for fold_i in range(5):
+        for fold_i in range(2):
             hparams.fold_i = fold_i
             if is_skip_current_fold(fold_i, hparams):
                 logger.info(f'Skipped fold {fold_i}')
@@ -425,17 +499,23 @@ if __name__ == "__main__":
                 num_sanity_val_steps=0,
                 profiler=False,
                 gradient_clip_val=hparams.gradient_clip_val)
-            trainer.fit(model,
-                        datamodule=da,
-                        ckpt_path=get_checkpoint_resume(hparams))
-            try:
-                trainer.test(ckpt_path=checkpoint_callback.best_model_path,
-                             datamodule=da)
-                valid_roc_auc_scores.append(
-                    round(checkpoint_callback.best_model_score, 4))
-            except Exception as e:
-                traceback.print_exc()
-                print('Proccessing wrong in testing.')
+            if hparams.eval_mode == 'train':
+                trainer.fit(model,
+                            datamodule=da,
+                            ckpt_path=get_checkpoint_resume(hparams))
+                try:
+                    trainer.test(ckpt_path=checkpoint_callback.best_model_path,
+                                datamodule=da)
+                    valid_roc_auc_scores.append(
+                        round(checkpoint_callback.best_model_score, 4))
+                except Exception as e:
+                    traceback.print_exc()
+                    print('Proccessing wrong in testing.')
+            elif hparams.eval_mode == 'test':
+                trainer.test(model=model, ckpt_path=get_checkpoint_resume(hparams),
+                            datamodule=da)
+        if hparams.eval_mode == 'test':
+            post_embedding(hparams) 
         logger.info(valid_roc_auc_scores)
     except Exception as e:
         traceback.print_exc()
