@@ -444,7 +444,7 @@ if __name__ == "__main__":
     # Do cross validation
     valid_roc_auc_scores = []
     try:
-        for fold_i in range(2):
+        for fold_i in range(5):
             hparams.fold_i = fold_i
             if is_skip_current_fold(fold_i, hparams):
                 logger.info(f'Skipped fold {fold_i}')

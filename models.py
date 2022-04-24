@@ -33,7 +33,7 @@ class se_resnext50_32x4d(nn.Module):
             *list(pretrainedmodels.__dict__["se_resnext50_32x4d"](
                 num_classes=1000, pretrained="imagenet").children())[:-2])
         # for param in self.model_ft.parameters():
-        #     param.requires_grad = False
+            # param.requires_grad = False
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.model_ft.last_linear = None
         self.fea_bn = nn.BatchNorm1d(2048)
