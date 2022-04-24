@@ -40,3 +40,4 @@ skip_folds: [0, 1, 2, 3, 4]
 checkpoints: null
 num_workers: 8
 metrics: mAP
+eval_mode: train

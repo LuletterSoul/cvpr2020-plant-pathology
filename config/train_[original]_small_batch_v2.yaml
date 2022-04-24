@@ -32,7 +32,7 @@ clean_debug: true
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
-resume_from_checkpoint: 
+resume_from_checkpoint: null
 skip_folds: [0, 1]
 checkpoints: null
 test_batch_size: 128
@@ -40,3 +40,4 @@ train_num_workers: 16
 val_num_workers: 0
 test_num_workers: 8
 metrics: bn_mAP
+eval_mode: train

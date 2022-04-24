@@ -35,8 +35,8 @@ clean_debug: false
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
-# resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220420-1307-roi/checkpoints
-# resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/202204221131-roi/checkpoints
-resume_from_checkpoint: 
+resume_from_checkpoint: null
 skip_folds: [0, 1, 2, 3, 4]
 checkpoints: null
+num_workers: 8
+metrics: mAP

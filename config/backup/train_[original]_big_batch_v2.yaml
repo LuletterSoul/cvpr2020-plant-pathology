@@ -1,5 +1,5 @@
 backbone: se_resnext50_32x4d
-exp_name: original_224_transfer
+exp_name: original_224
 description: original
 data_folder: /data/lxd/datasets/2022-04-18-Eggs
 training_set: train.csv
@@ -12,6 +12,7 @@ fold_i: 0
 val_batch_size: 128
 anchor_batch_size: 6
 training_mode: ddp
+eval_mode: train
 num_workers: 8
 image_size: [264, 224]
 seed: 2022
@@ -27,16 +28,16 @@ debug: false
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
-resume_from_checkpoint: 
+resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/202204231613-original_224/checkpoints
 checkpoints: 
 test_real_world_set: seed
 test_real_world_num: 1
 save_top_k: 5
 patience: 10
 clean_debug: true
-skip_folds: [0, 1, 2, 3, 4]
+skip_folds: []
 test_batch_size: 128
 train_num_workers: 8
-val_num_workers: 0
+val_num_workers: 8
 test_num_workers: 8
 metrics: 'mAP'
