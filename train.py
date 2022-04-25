@@ -35,20 +35,26 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torchmetrics import AveragePrecision, AUROC
 from torch import Tensor, embedding
 
+
 class BinaryAveragePrecision(AveragePrecision):
-    def __init__(self, num_classes: Optional[int] = None, pos_label: Optional[int] = None, average: Optional[str] = "macro", compute_on_step: Optional[bool] = None, **kwargs: Dict[str, Any]) -> None:
-        super().__init__(num_classes, pos_label, average, compute_on_step, **kwargs)
-    
+
+    def __init__(self,
+                 num_classes: Optional[int] = None,
+                 pos_label: Optional[int] = None,
+                 average: Optional[str] = "macro",
+                 compute_on_step: Optional[bool] = None,
+                 **kwargs: Dict[str, Any]) -> None:
+        super().__init__(num_classes, pos_label, average, compute_on_step,
+                         **kwargs)
+
     def binarization(self, label: Tensor) -> None:
         return torch.cat(
-        [label[:, [0]], label[:, 1:].sum(axis=1, keepdim=True)],
-        axis=1)
-    
+            [label[:, [0]], label[:, 1:].sum(axis=1, keepdim=True)], axis=1)
+
     def update(self, preds: Tensor, target: Tensor) -> None:
         preds = self.binarization(preds)
         target = self.binarization(target)
         return super().update(preds, target)
-    
 
 
 class CoolSystem(pl.LightningModule):
@@ -81,9 +87,10 @@ class CoolSystem(pl.LightningModule):
 
         self.test_pred_path = os.path.join(self.test_output_dir, 'pred.csv')
         self.test_label_path = os.path.join(self.test_output_dir, 'label.csv')
-        self.test_pred = self.create_empty_csv(self.test_pred_path, HEADER_NAMES)
-        self.test_label = self.create_empty_csv(self.test_label_path, HEADER_NAMES)
-        
+        self.test_pred = self.create_empty_csv(self.test_pred_path,
+                                               HEADER_NAMES)
+        self.test_label = self.create_empty_csv(self.test_label_path,
+                                                HEADER_NAMES)
 
         self.test_selection_records = self.load_records(
             self.test_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
@@ -131,10 +138,10 @@ class CoolSystem(pl.LightningModule):
         if self.hparams.metrics == 'roc_auc':
             self.metric = AUROC(num_classes=self.hparams.num_classes)
         elif self.hparams.metrics == 'mAP':
-            self.metric = AveragePrecision(num_classes=self.hparams.num_classes)
+            self.metric = AveragePrecision(
+                num_classes=self.hparams.num_classes)
         elif self.hparams.metrics == 'bn_mAP':
             self.metric = BinaryAveragePrecision(pos_label=0)
-            
 
     def load_records(self, record_path, columns):
         if os.path.exists(record_path):
@@ -150,8 +157,6 @@ class CoolSystem(pl.LightningModule):
         df = pd.DataFrame(columns=columns)
         df.to_csv(record_path, index=False)
         return df
-
-
 
     def forward(self, x):
         return self.model(x)
@@ -265,18 +270,22 @@ class CoolSystem(pl.LightningModule):
 
         np_scores = torch.softmax(scores, dim=1).detach().cpu().numpy()
         np_labels = labels.detach().cpu().numpy()
-        np_scores = pd.DataFrame(np.concatenate([np.array(filenames).reshape(-1, 1), np_scores], axis=1))
-        np_labels = pd.DataFrame(np.concatenate([np.array(filenames).reshape(-1, 1), np_labels], axis=1))
+        np_scores = pd.DataFrame(
+            np.concatenate([np.array(filenames).reshape(-1, 1), np_scores],
+                           axis=1))
+        np_labels = pd.DataFrame(
+            np.concatenate([np.array(filenames).reshape(-1, 1), np_labels],
+                           axis=1))
 
         np_scores.to_csv(self.test_pred_path,
-                                       mode='a',
-                                       header=False,
-                                       index=False)
+                         mode='a',
+                         header=False,
+                         index=False)
 
         np_labels.to_csv(self.test_label_path,
-                                       mode='a',
-                                       header=False,
-                                       index=False)
+                         mode='a',
+                         header=False,
+                         index=False)
         return {
             "filenames":
             np.array(filenames),
@@ -296,7 +305,9 @@ class CoolSystem(pl.LightningModule):
     def test_epoch_end(self, outputs):
         # compute loss
         test_info = collect_distributed_info(self.hparams, outputs)
-        other_info = collect_other_distributed_info(self.hparams, outputs, created=False)
+        other_info = collect_other_distributed_info(self.hparams,
+                                                    outputs,
+                                                    created=False)
         if self.global_rank == 0:
             preds = pd.read_csv(self.test_pred_path)
             labels = pd.read_csv(self.test_label_path)
@@ -307,7 +318,7 @@ class CoolSystem(pl.LightningModule):
                         self.current_epoch,
                         torch.from_numpy(preds.iloc[:, 1:].to_numpy()),
                         torch.from_numpy(labels.iloc[:, 1:].to_numpy()),
-                        preds.iloc[:, [0]].to_numpy().reshape(-1), 
+                        preds.iloc[:, [0]].to_numpy().reshape(-1),
                         self.test_output_dir,
                         ger_report=True)
         # test_roc_auc = get_roc_auc(labels_all, scores_all)
@@ -397,7 +408,7 @@ class CoolSystem(pl.LightningModule):
         # compute loss
         # only process the main validation set.
         self.logger.log_metrics
-        val_info = collect_distributed_info(self.hparams,outputs[1])
+        val_info = collect_distributed_info(self.hparams, outputs[1])
         other_info = collect_other_distributed_info(self.hparams, outputs)
 
         post_report(self.hparams, self.current_epoch, val_info.scores,
@@ -442,7 +453,6 @@ if __name__ == "__main__":
     logger = init_logger("HEC", log_dir=hparams.log_dir)
     hparams.HEC_LOGGER = logger
     # Do cross validation
-    valid_roc_auc_scores = []
     try:
         for fold_i in range(5):
             hparams.fold_i = fold_i
@@ -505,18 +515,17 @@ if __name__ == "__main__":
                             ckpt_path=get_checkpoint_resume(hparams))
                 try:
                     trainer.test(ckpt_path=checkpoint_callback.best_model_path,
-                                datamodule=da)
-                    valid_roc_auc_scores.append(
-                        round(checkpoint_callback.best_model_score, 4))
+                                 datamodule=da)
+                    # valid_roc_auc_scores.append(
+                    # round(checkpoint_callback.best_model_score, 4))
                 except Exception as e:
                     traceback.print_exc()
                     print('Proccessing wrong in testing.')
             elif hparams.eval_mode == 'test':
-                trainer.test(model=model, ckpt_path=get_checkpoint_resume(hparams),
-                            datamodule=da)
-        if hparams.eval_mode == 'test':
-            post_embedding(hparams) 
-        logger.info(valid_roc_auc_scores)
+                trainer.test(model=model,
+                             ckpt_path=get_checkpoint_resume(hparams),
+                             datamodule=da)
+        post_embedding(hparams)
     except Exception as e:
         traceback.print_exc()
         raise e
