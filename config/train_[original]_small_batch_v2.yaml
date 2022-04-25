@@ -32,9 +32,9 @@ clean_debug: true
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
-resume_from_checkpoint: null
 skip_folds: [0, 1]
-checkpoints: null
+resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220425055-original_224_bn_mAP/checkpoints
+checkpoints: 
 test_batch_size: 128
 train_num_workers: 16
 val_num_workers: 0

@@ -7,7 +7,7 @@ import os
 import gc
 from pathlib import Path
 from pydoc import classname
-from time import time
+from time import time, sleep
 import traceback
 from typing import Dict
 import numpy as np
@@ -34,6 +34,7 @@ from utils import *
 from pytorch_lightning.loggers import TensorBoardLogger
 from torchmetrics import AveragePrecision, AUROC
 from torch import Tensor, embedding
+from filelock import FileLock
 
 
 class BinaryAveragePrecision(AveragePrecision):
@@ -276,16 +277,19 @@ class CoolSystem(pl.LightningModule):
         np_labels = pd.DataFrame(
             np.concatenate([np.array(filenames).reshape(-1, 1), np_labels],
                            axis=1))
+        # set lock for avoiding concurrence problems
+        with FileLock(self.test_pred_path + '.lock'):
+            np_scores.to_csv(self.test_pred_path,
+                             mode='a',
+                             header=False,
+                             index=False)
 
-        np_scores.to_csv(self.test_pred_path,
-                         mode='a',
-                         header=False,
-                         index=False)
+        with FileLock(self.test_label_path + '.lock'):
+            np_labels.to_csv(self.test_label_path,
+                             mode='a',
+                             header=False,
+                             index=False)
 
-        np_labels.to_csv(self.test_label_path,
-                         mode='a',
-                         header=False,
-                         index=False)
         return {
             "filenames":
             np.array(filenames),
@@ -309,6 +313,7 @@ class CoolSystem(pl.LightningModule):
                                                     outputs,
                                                     created=False)
         if self.global_rank == 0:
+            sleep(3)  # wait other processes to complete inference
             preds = pd.read_csv(self.test_pred_path)
             labels = pd.read_csv(self.test_label_path)
             preds = preds.sort_values(by=['filename'])
