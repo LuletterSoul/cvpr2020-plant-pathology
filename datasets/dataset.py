@@ -216,6 +216,7 @@ def a2_transforms(hparams):
                   p=1.0),
     ])
 
+
 def a3_transforms(hparams):
     return Compose([
         LongestMaxSize(max_size=hparams.image_size[0]),
@@ -438,7 +439,7 @@ def get_real_world_test_dataloaders(hparams, transforms):
     for filepath in test_paths[:hparams.test_real_world_num]:
         test_data = pd.read_csv(filepath)
         real_world_test_dataloaders.append(
-            generate_val_dataloaders(hparams, test_data, transforms))
+            generate_test_dataloaders(hparams, test_data, transforms))
     return real_world_test_dataloaders
 
 
@@ -477,15 +478,16 @@ class ProjectDataModule(pl.LightningDataModule):
         # seed_reproducer(2022)
         anchor_dataloader = generate_anchor_dataloaders(
             self.hparams, self.test_data, self.transforms)
-        real_world_test_dataloaders = get_real_world_test_dataloaders(
-            self.hparams, self.transforms)
+        # real_world_test_dataloaders = get_real_world_test_dataloaders(
+        # self.hparams, self.transforms)
         val_data = self.data.iloc[
             self.fold_indexes[self.hparams.fold_i][1], :].reset_index(
                 drop=True)
         val_dataloader = generate_val_dataloaders(self.hparams, val_data,
                                                   self.transforms)
-        val_dataloaders = [anchor_dataloader, val_dataloader
-                           ] + real_world_test_dataloaders
+        # val_dataloaders = [anchor_dataloader, val_dataloader
+        #    ] + real_world_test_dataloaders
+        val_dataloaders = [anchor_dataloader, val_dataloader]
         for idx, val_dataloader in enumerate(val_dataloaders):
             self.hparams.HEC_LOGGER.info(
                 f'Pid {os.getpid()}, the batches of VAL dataloader {idx} are {len(val_dataloader)}'
@@ -494,10 +496,12 @@ class ProjectDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         # seed_reproducer(2022)
-        test_dataloaders = [generate_test_dataloaders(self.hparams,
-                                                    self.test_data,
-                                                    self.transforms)]
-        test_real_world_dataloaders = get_real_world_test_dataloaders(self.hparams, self.transforms) 
+        test_dataloaders = [
+            generate_test_dataloaders(self.hparams, self.test_data,
+                                      self.transforms)
+        ]
+        test_real_world_dataloaders = get_real_world_test_dataloaders(
+            self.hparams, self.transforms)
         test_dataloaders = test_dataloaders + test_real_world_dataloaders
         for test_dataloader in test_dataloaders:
             self.hparams.HEC_LOGGER.info(
