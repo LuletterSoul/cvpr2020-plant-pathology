@@ -80,23 +80,29 @@ class CoolSystem(pl.LightningModule):
         os.makedirs(self.test_vis_output, exist_ok=True)
         self.test_cat_output = os.path.join(self.test_output_dir, 'cat')
         os.makedirs(self.test_cat_output, exist_ok=True)
+        self.test_set_output = os.path.join(self.test_output_dir, 'set')
+        os.makedirs(self.test_set_output, exist_ok=True)
 
-        self.test_selection_record_path = os.path.join(
-            os.path.join(self.test_output_dir, 'selection.csv'))
-        self.test_performance_record_path = os.path.join(
-            self.test_output_dir, 'performance.csv')
+        # self.test_selection_record_path = os.path.join(
+        #     os.path.join(self.test_output_dir, 'selection.csv'))
+        # self.test_performance_record_path = os.path.join(
+        #     self.test_output_dir, 'performance.csv')
+        self.test_set_num = self.hparams.test_real_world_num + 1
 
-        self.test_pred_path = os.path.join(self.test_output_dir, 'pred.csv')
-        self.test_label_path = os.path.join(self.test_output_dir, 'label.csv')
-        self.test_pred = self.create_empty_csv(self.test_pred_path,
-                                               HEADER_NAMES)
-        self.test_label = self.create_empty_csv(self.test_label_path,
+        for test_dataloader_idx in range(self.test_set_num):
+            test_data_output_dir = os.path.join(self.test_set_output, str(test_dataloader_idx))
+            os.makedirs(test_data_output_dir, exist_ok=True)
+            self.test_pred_path = os.path.join(test_data_output_dir, 'pred.csv')
+            self.test_label_path = os.path.join(test_data_output_dir, 'label.csv')
+            self.create_empty_csv(self.test_pred_path,
                                                 HEADER_NAMES)
+            self.create_empty_csv(self.test_label_path,
+                                                    HEADER_NAMES)
 
-        self.test_selection_records = self.load_records(
-            self.test_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
-        self.test_performance_records = self.load_records(
-            self.test_performance_record_path, PERFORMANCE_RECORD_HEADERS)
+        # self.test_selection_records = self.load_records(
+        #     self.test_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
+        # self.test_performance_records = self.load_records(
+        #     self.test_performance_record_path, PERFORMANCE_RECORD_HEADERS)
 
         # create directories for validation
         self.val_output_dir = os.path.join(hparams.log_dir,
@@ -262,7 +268,7 @@ class CoolSystem(pl.LightningModule):
     #                       ]).to(data_load_time.device),
     #     }
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, batch_idx, dataloader_idx):
         step_start_time = time()
         images, labels, data_load_time, filenames = batch
         data_load_time = torch.sum(data_load_time)
@@ -278,14 +284,17 @@ class CoolSystem(pl.LightningModule):
             np.concatenate([np.array(filenames).reshape(-1, 1), np_labels],
                            axis=1))
         # set lock for avoiding concurrence problems
-        with FileLock(self.test_pred_path + '.lock'):
-            np_scores.to_csv(self.test_pred_path,
+        test_data_output_dir = os.path.join(self.test_set_output, str(dataloader_idx))
+        test_pred_path = os.path.join(test_data_output_dir, 'pred.csv')
+        test_label_path = os.path.join(test_data_output_dir, 'label.csv')
+        with FileLock(test_pred_path + '.lock'):
+            np_scores.to_csv(test_pred_path,
                              mode='a',
                              header=False,
                              index=False)
 
-        with FileLock(self.test_label_path + '.lock'):
-            np_labels.to_csv(self.test_label_path,
+        with FileLock(test_label_path + '.lock'):
+            np_labels.to_csv(test_label_path,
                              mode='a',
                              header=False,
                              index=False)
@@ -308,24 +317,28 @@ class CoolSystem(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         # compute loss
-        test_info = collect_distributed_info(self.hparams, outputs)
+        test_info = collect_distributed_info(self.hparams, outputs[0])
         other_info = collect_other_distributed_info(self.hparams,
                                                     outputs,
                                                     created=False)
         if self.global_rank == 0:
             sleep(3)  # wait other processes to complete inference
-            preds = pd.read_csv(self.test_pred_path)
-            labels = pd.read_csv(self.test_label_path)
-            preds = preds.sort_values(by=['filename'])
-            labels = labels.sort_values(by=['filename'])
-            assert len(preds) == len(labels)
-            post_report(self.hparams,
-                        self.current_epoch,
-                        torch.from_numpy(preds.iloc[:, 1:].to_numpy()),
-                        torch.from_numpy(labels.iloc[:, 1:].to_numpy()),
-                        preds.iloc[:, [0]].to_numpy().reshape(-1),
-                        self.test_output_dir,
-                        ger_report=True)
+            for dataloader_idx in range(len(outputs)):
+                test_data_output_dir = os.path.join(self.test_set_output, str(dataloader_idx))
+                test_pred_path = os.path.join(test_data_output_dir, 'pred.csv')
+                test_label_path = os.path.join(test_data_output_dir, 'label.csv')
+                preds = pd.read_csv(test_pred_path)
+                labels = pd.read_csv(test_label_path)
+                preds = preds.sort_values(by=['filename'])
+                labels = labels.sort_values(by=['filename'])
+                assert len(preds) == len(labels)
+                post_report(self.hparams,
+                            self.current_epoch,
+                            torch.from_numpy(preds.iloc[:, 1:].to_numpy()),
+                            torch.from_numpy(labels.iloc[:, 1:].to_numpy()),
+                            preds.iloc[:, [0]].to_numpy().reshape(-1),
+                            test_data_output_dir,
+                            ger_report=True)
         # test_roc_auc = get_roc_auc(labels_all, scores_all)
         self.HEC_LOGGER.info(
             f"{self.hparams.fold_i}-{self.current_epoch} | "
@@ -335,11 +348,12 @@ class CoolSystem(pl.LightningModule):
             f"batch_run_times : {test_info.batch_run_times:.2f}")
         # self.log('test_loss', test_info.test_loss_mean)
         # self.log('test_roc_auc', test_info.test_roc_auc)
-        write_distributed_records(self.global_rank, self.hparams.fold_i,
-                                  self.current_epoch, self.global_step,
-                                  test_info, other_info,
-                                  self.test_selection_record_path,
-                                  self.test_performance_record_path)
+
+        # write_distributed_records(self.global_rank, self.hparams.fold_i,
+        #                           self.current_epoch, self.global_step,
+        #                           test_info, other_info,
+        #                           self.test_selection_record_path,
+        #                           self.test_performance_record_path)
         return {
             "test_loss": test_info.loss_mean,
             "test_roc_auc": test_info.roc_auc
@@ -530,7 +544,8 @@ if __name__ == "__main__":
                 trainer.test(model=model,
                              ckpt_path=get_checkpoint_resume(hparams),
                              datamodule=da)
-        post_embedding(hparams)
+        if model.global_rank == 0:
+            post_embedding(hparams)
     except Exception as e:
         traceback.print_exc()
         raise e

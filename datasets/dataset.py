@@ -494,13 +494,16 @@ class ProjectDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         # seed_reproducer(2022)
-        test_dataloader = generate_test_dataloaders(self.hparams,
+        test_dataloaders = [generate_test_dataloaders(self.hparams,
                                                     self.test_data,
-                                                    self.transforms)
-        self.hparams.HEC_LOGGER.info(
-            f'Pid {os.getpid()}, the batches of TEST dataloader {len(test_dataloader)}'
-        )
-        return test_dataloader
+                                                    self.transforms)]
+        test_real_world_dataloaders = get_real_world_test_dataloaders(self.hparams, self.transforms) 
+        test_dataloaders = test_dataloaders + test_real_world_dataloaders
+        for test_dataloader in test_dataloaders:
+            self.hparams.HEC_LOGGER.info(
+                f'Pid {os.getpid()}, the batches of TEST dataloader {len(test_dataloader)}'
+            )
+        return test_dataloaders
 
 
 if __name__ == '__main__':

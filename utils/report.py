@@ -1,5 +1,8 @@
+from operator import index
 from pathlib import Path
+import pdb
 import shutil
+from typing import List
 import numpy as np
 import os
 from sklearn import metrics, datasets
@@ -8,6 +11,7 @@ from .constant import *
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
+from pandas import DataFrame
 
 
 def save_csv_report(report, output_dir, class_names, pos_thresh=0.50):
@@ -220,30 +224,79 @@ def compose_report(hparams, report, output_path, match_pattern, embedding_rank=-
     df: pd.DataFrame = pd.concat(bn_reports).sort_values(
         by=['class', 'precision', 'Rank'], ascending=False)
     df.to_csv(output_path, index=False, float_format='%.4f')
+    return df
 
-def post_embedding(hparams):
-    output_dir = os.path.join(hparams.log_dir, 'embedding')
+def handle_single_test_set(hparams, test_set_idx, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     pred_results = []
-    for path in list(Path(hparams.log_dir).glob('fold*/test/pred.csv')):
+    for path in list(Path(hparams.log_dir).glob(f'fold*/test/set/{test_set_idx}/pred.csv')):
         pred_df = pd.read_csv(path).sort_values(by=['filename'])
         pred = pred_df.iloc[:, 1:].to_numpy()
         pred_results.append(pred)
     if len(pred_results) == 0:
         return
     embedding_results = np.mean(pred_results, axis=0)
-    label_df = pd.read_csv(list(Path(hparams.log_dir).glob('fold*/test/label.csv'))[0]).sort_values(by=['filename'])
+    label_df = pd.read_csv(list(Path(hparams.log_dir).glob(f'fold*/test/set/{test_set_idx}/label.csv'))[0]).sort_values(by=['filename'])
     embedding_df = label_df.copy()
     embedding_df.iloc[:, 1:] = embedding_results
     report, bn_report, th_reports = generate_report(embedding_df, label_df, 'embedding', os.path.join(output_dir, 'report'))
 
     embedding_rank = len(pred_results)
 
-    compose_report(hparams, report, os.path.join(output_dir, 'multiclass_summary_all.csv'),match_pattern='fold*/test/report/Report_*.csv', embedding_rank=embedding_rank)
-    compose_report(hparams, bn_report, os.path.join(output_dir, 'bn_summary_all.csv'),match_pattern='fold*/test/report/BN_Report_*.csv', embedding_rank=embedding_rank)
+    multiclass_df = compose_report(hparams, report, os.path.join(output_dir, 'multiclass_summary_all.csv'),match_pattern=f'fold*/test/set/{test_set_idx}/report/Report_*.csv', embedding_rank=embedding_rank)
+    bn_df = compose_report(hparams, bn_report, os.path.join(output_dir, 'bn_summary_all.csv'),match_pattern=f'fold*/test/set/{test_set_idx}/report/BN_Report_*.csv', embedding_rank=embedding_rank)
+    th_dfs = []
     for idx, th in enumerate(THRESH):
-        compose_report(hparams, th_reports[idx], os.path.join(output_dir, f'th_{th}_summary_all.csv'),match_pattern='fold*/test/report/th/TH_Report*{th}.csv', 
+        th_df = compose_report(hparams, th_reports[idx], os.path.join(output_dir, f'th_{th}_summary_all.csv'),match_pattern=f'fold*/test/set/{test_set_idx}/report/th/TH_Report*{th}.csv', 
         embedding_rank=embedding_rank)
+        th_dfs.append(th_df)
+    return bn_df, multiclass_df, th_dfs
+
+def get_mean(dfs: List[DataFrame]):
+    mean: DataFrame = dfs[0].copy().sort_values(by=['Rank', 'class'], ascending=False)
+    dfs: pd.DataFrame = [df.sort_values(by=['Rank', 'class'], ascending=False) for df in dfs ]
+    mean.iloc[:, 2:] = np.mean([df.iloc[:, 2:].to_numpy() for df in dfs], axis=0)
+    mean = mean.sort_values(by=['class', 'precision', 'Rank'], ascending=False)
+    return mean
+
+def excluse_df(dfs, exclude_idx):
+    return [df for idx, df in enumerate(dfs) if idx != exclude_idx]
+
+def save_mean_df_for_real_world_sets(bn_dfs, multiclass_dfs, th_df_groups, test_pos_idx, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    bn_dfs = excluse_df(bn_dfs, test_pos_idx)
+    multiclass_dfs = excluse_df(multiclass_dfs, test_pos_idx)
+    th_df_groups = excluse_df(th_df_groups, test_pos_idx)
+    mean_bn_df: DataFrame = get_mean(bn_dfs)
+    mean_multiclass_df: DataFrame = get_mean(multiclass_dfs)
+    mean_th_dfs: List[DataFrame] = [get_mean(th_df) for th_df in th_df_groups]
+
+    mean_bn_df.to_csv(os.path.join(output_dir, 'bn_summary_all.csv'), index=False, float_format='%.4f')
+    mean_multiclass_df.to_csv(os.path.join(output_dir, 'multiclass_summary_all.csv'), index=False, float_format='%.4f')
+    mean_th_dfs[-1].to_csv(os.path.join(output_dir, 'th_summary_all.csv'), index=False, float_format='%.4f')
+
+
+def post_embedding(hparams):
+    output_dir = os.path.join(hparams.log_dir, 'embedding')
+    os.makedirs(output_dir, exist_ok=True)
+    test_set_num = hparams.test_real_world_num + 1
+    test_pos_idx = 0 # point the postion idx of exp test set, the remainted sets are real-world test sets.
+
+    bn_dfs, multiclass_dfs, th_df_groups = [], [], []
+    for set_id in range(test_set_num):
+        data_output_dir = os.path.join(output_dir, str(set_id))
+        bn_df, multiclass_df, th_dfs = handle_single_test_set(hparams, set_id, data_output_dir)
+        bn_dfs.append(bn_df)
+        multiclass_dfs.append(multiclass_df)
+        th_df_groups.append(th_dfs)
+    save_mean_df_for_real_world_sets(bn_dfs, multiclass_dfs, th_df_groups, test_pos_idx, os.path.join(output_dir, 'mean'))
+
+    
+
+   
+
+    
+        
 
 
 

@@ -28,7 +28,8 @@ debug: false
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
-resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/202204231613-original_224/checkpoints
+# resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/202204231613-original_224/checkpoints
+resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/202204241628-original_224_mAP/checkpoints
 checkpoints: 
 test_real_world_set: seed
 test_real_world_num: 1
