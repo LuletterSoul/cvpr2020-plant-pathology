@@ -20,11 +20,11 @@ from torchvision.transforms.functional import to_tensor
 # Third party libraries
 import torch
 from torchcam.methods.gradient import SmoothGradCAMpp
-from datasets.dataset import generate_anchor_dataloaders, generate_test_dataloaders, generate_transforms, generate_dataloaders, generate_val_dataloaders, ProjectDataModule
+from datasets.dataset import ProjectDataModule
 from sklearn.model_selection import KFold
 
 # User defined libraries
-from models import se_resnext50_32x4d
+from models import se_resnext50_32x4d, se_resnext50_32x4d_mask
 from utils import init_hparams, init_logger, load_training_data, seed_reproducer, load_data
 from loss_function import CrossEntropyLossOneHot
 from lrs_scheduler import WarmRestart, warm_restart
@@ -68,7 +68,10 @@ class CoolSystem(pl.LightningModule):
         # 让每次模型初始化一致, 不让只要中间有再次初始化的情况, 结果立马跑偏
         seed_reproducer(self.hparams.seed)
         self.num_classes = hparams.num_classes
-        self.model = se_resnext50_32x4d(num_classes=self.num_classes)
+        if self.hparams.model_type == 'base':
+            self.model = se_resnext50_32x4d(num_classes=self.num_classes)
+        elif self.hparams.model_type == 'mask':
+            self.model = se_resnext50_32x4d_mask(num_classes=self.num_classes)
         self.criterion = CrossEntropyLossOneHot()
         self.HEC_LOGGER = init_logger('HEC', hparams.log_dir)
 
@@ -165,16 +168,9 @@ class CoolSystem(pl.LightningModule):
         df.to_csv(record_path, index=False)
         return df
 
-    def forward(self, x):
-        return self.model(x)
-
-    # def on_fit_start(self) -> None:
-    #     ckpt_path = get_checkpoint_resume(self.hparams)
-    #     if ckpt_path is not None:
-    #         meta = parse_checkpoint_meta_info(os.path.basename(ckpt_path))
-    #         for name, value in meta.items():
-    #             self.log(name, torch.tensor(value, dtype=torch.float))
-    #     return super().on_fit_start()
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+    
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.Adam(self.parameters(),
@@ -190,9 +186,9 @@ class CoolSystem(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         step_start_time = time()
-        images, labels, data_load_time, _ = batch
+        images, roi_mask, ar_mask, labels, data_load_time, _ = batch
 
-        scores = self(images)
+        scores = self(images,roi_mask=roi_mask, ar_mask=ar_mask)
         loss = self.criterion(scores, labels)
         # self.HEC_LOGGER_kun.info(f"loss : {loss.item()}")
         # ! can only return scalar tensor in training_step
@@ -270,9 +266,9 @@ class CoolSystem(pl.LightningModule):
 
     def test_step(self, batch, batch_idx, dataloader_idx):
         step_start_time = time()
-        images, labels, data_load_time, filenames = batch
+        images, roi_mask, ar_mask, labels, data_load_time, filenames = batch
         data_load_time = torch.sum(data_load_time)
-        scores = self(images)
+        scores = self(images, roi_mask=roi_mask, ar_mask=ar_mask)
         loss = self.criterion(scores, labels)
 
         np_scores = torch.softmax(scores, dim=1).detach().cpu().numpy()
@@ -369,11 +365,11 @@ class CoolSystem(pl.LightningModule):
                 # self.unfreeze()
                 self.eval()
                 self.zero_grad()
-                images, labels, data_load_time, filenames = batch
+                images, roi_mask, ar_mask, labels, data_load_time, filenames = batch
                 images.requires_grad = True
                 # self.HEC_LOGGER_kun.info(f'{dataloader_idx}: {images.size()}')
                 data_load_time = torch.sum(data_load_time)
-                scores = self(images)
+                scores = self(images, roi_mask=roi_mask, ar_mask=ar_mask)
                 visualization(batch_idx,
                               self.cam_extractors,
                               images,
@@ -389,10 +385,10 @@ class CoolSystem(pl.LightningModule):
                 # self.freeze()
             loss = self.criterion(scores, labels)
         else:
-            images, labels, data_load_time, filenames = batch
+            images, roi_mask, ar_mask, labels, data_load_time, filenames = batch
             # self.HEC_LOGGER_kun.info(f'{dataloader_idx}: {images.size()}')
             data_load_time = torch.sum(data_load_time)
-            scores = self(images)
+            scores = self(images, roi_mask=roi_mask, ar_mask=ar_mask)
             loss = self.criterion(scores, labels)
             # self.metric(scores, labels)
             # self.log('val_loss', loss, on_step=False, on_epoch=True)
@@ -470,6 +466,7 @@ if __name__ == "__main__":
     hparams = init_training_config()
     # init logger
     logger = init_logger("HEC", log_dir=hparams.log_dir)
+    os.environ["EXP_DIR"] = hparams.log_dir
     hparams.HEC_LOGGER = logger
     # Do cross validation
     try:
@@ -508,8 +505,8 @@ if __name__ == "__main__":
 
             # Instance Model, Trainer and train model
             model = CoolSystem(hparams)
-            # if hparams.debug:
-            # print(model)
+            if hparams.debug:
+                logger.info(model)
             trainer = pl.Trainer(
                 logger=tf_logger,
                 replace_sampler_ddp=False,

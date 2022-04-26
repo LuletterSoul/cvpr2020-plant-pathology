@@ -82,7 +82,7 @@ def get_parser():
     parser = ArgumentParser()
     parser.add_argument('--config',
                         type=str,
-                        default='config/train_[original]_small_batch.yaml',
+                        default='config/train_[original]_small_batch_v2.yaml',
                         help='config path')
     return parser
 
