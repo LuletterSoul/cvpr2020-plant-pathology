@@ -1,11 +1,11 @@
 backbone: se_resnext50_32x4d
-exp_name: original_224_bn_mAP
-description: set min epoch = 70, use early stopping, use a2 augmentation
-data_folder: /data2/lxd/datasets/2022-04-18-Eggs
+exp_name: original_224
+description: 
+data_folder: /data/lxd/datasets/2022-04-18-Eggs
 training_set: train.csv
 test_set: test.csv
 test_real_world_set: seed
-test_real_world_num: 1
+test_real_world_num: 10
 num_classes: 8
 lr: 0.001
 train_transforms: a2
@@ -33,11 +33,17 @@ norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
 skip_folds: [0, 1]
-resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220425055-original_224_bn_mAP/checkpoints
-checkpoints: 
+resume_from_checkpoint: 
+checkpoints: null
 test_batch_size: 128
 train_num_workers: 16
 val_num_workers: 0
 test_num_workers: 8
-metrics: bn_mAP
+metrics: mAP
 eval_mode: train
+data_mask: /data/lxd/datasets/2022-04-18-Egg-Masks
+model_type: base
+dataset: base
+classes: ['OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak','Flower']
+# filter_classes: ['AirRoomShake', 'Weak', 'Flower']
+filter_classes: []

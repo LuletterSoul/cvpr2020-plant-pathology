@@ -23,6 +23,9 @@ from os.path import dirname
 from pytorch_lightning import seed_everything
 from pytorch_lightning.loggers.base import LightningLoggerBase
 from pytorch_lightning.utilities.distributed import rank_zero_only
+
+from utils.constant import MAP2VIS, update_by_filter_names
+
 IMG_SHAPE = (700, 600, 3)
 IMAGE_FOLDER = "data/images"
 NPY_FOLDER = "/home/public_data_center/kaggle/plant_pathology_2020/npys"
@@ -246,7 +249,14 @@ def init_training_config():
     checkpoint_dir = os.path.join(hparams.log_dir, 'checkpoints')
     os.makedirs(checkpoint_dir, exist_ok=True)
     hparams.checkpoint_dir = checkpoint_dir
+    build_constants(hparams)
     return hparams
+
+
+def build_constants(hparams):
+    update_by_filter_names(hparams)
+    hparams.header_names = ['filename'] + hparams.classes
+    hparams.vis_all_labels = [MAP2VIS[NAME] for NAME in hparams.classes]
 
 
 def load_data(logger, frac=1):
@@ -361,6 +371,7 @@ def read_image(image_path):
     """
     return cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
 
+
 class TerminalLogger(LightningLoggerBase):
 
     @property
@@ -372,13 +383,11 @@ class TerminalLogger(LightningLoggerBase):
         # Return the experiment version, int or str.
         return "1.0"
 
-
     @rank_zero_only
     def log_metrics(self, metrics, step):
         # metrics is a dictionary of metric names and values
         # your code to record metrics goes here
         pass
-
 
     @rank_zero_only
     def finalize(self, status):

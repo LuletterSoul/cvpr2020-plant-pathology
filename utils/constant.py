@@ -1,9 +1,24 @@
+MAP2VIS = {
+    'OK': 'OK',
+    'AirRoomShake': 'SK',
+    'Dead': 'DEAD',
+    'Empty': 'EM',
+    'NoAirRoom': 'NORM',
+    'Split': 'ST',
+    'Weak': 'WK',
+    'Flower': 'FR'
+}  # shorthand for better visualization
+
+FILTER_CLASSES = []
+
 CLASS_NAMES = [
     'OK', 'AirRoomShake', 'Dead', 'Empty', 'NoAirRoom', 'Split', 'Weak',
     'Flower'
 ]
 
-VIS_ALL_LABELS = ['OK', 'SK', 'DEAD', 'EM', 'NORM', 'ST', 'WK', 'FR']
+CLASS_NAMES = [name for name in CLASS_NAMES if name not in FILTER_CLASSES]
+
+VIS_ALL_LABELS = [MAP2VIS[NAME] for NAME in CLASS_NAMES]
 
 VIS_BINARY_LABELS = ['OK', 'NO_OK']
 
@@ -22,3 +37,14 @@ MODEL_SELECTION_RECORD_HEADERS = BASE_HEADERS + [
 PERFORMANCE_RECORD_HEADERS = BASE_HEADERS + [
     'class', 'precision', 'in_precision', 'recall', 'f1-score', 'support'
 ]
+
+
+def update_by_filter_names(hparams):
+    filter_classes = hparams.filter_classes
+    classes = hparams.classes
+    global FILTER_CLASSES, CLASS_NAMES, VIS_ALL_LABELS, HEADER_NAMES
+    FILTER_CLASSES = filter_classes
+    CLASS_NAMES = [name for name in classes if name not in filter_classes]
+    VIS_ALL_LABELS = [MAP2VIS[NAME] for NAME in CLASS_NAMES]
+    HEADER_NAMES = ['filename'] + CLASS_NAMES
+    hparams.classes = CLASS_NAMES

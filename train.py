@@ -26,7 +26,7 @@ from sklearn.model_selection import KFold
 # User defined libraries
 from models import se_resnext50_32x4d, se_resnext50_32x4d_mask
 from utils import init_hparams, init_logger, load_training_data, seed_reproducer, load_data
-from loss_function import CrossEntropyLossOneHot
+from loss_function import CrossEntropyLossOneHot, FocalLoss
 from lrs_scheduler import WarmRestart, warm_restart
 from utils.common import select_fn_indexes, visualization
 from PIL import Image
@@ -73,8 +73,9 @@ class CoolSystem(pl.LightningModule):
         elif self.hparams.model_type == 'mask':
             self.model = se_resnext50_32x4d_mask(num_classes=self.num_classes)
         self.criterion = CrossEntropyLossOneHot()
+        # self.criterion = FocalLoss(alpha=[1] * self.num_classes,
+        #    num_classes=self.num_classes)
         self.HEC_LOGGER = init_logger('HEC', hparams.log_dir)
-
         # create directories for testing
         self.test_output_dir = os.path.join(hparams.log_dir,
                                             f'fold-{hparams.fold_i}', 'test')
@@ -93,14 +94,17 @@ class CoolSystem(pl.LightningModule):
         self.test_set_num = self.hparams.test_real_world_num + 1
 
         for test_dataloader_idx in range(self.test_set_num):
-            test_data_output_dir = os.path.join(self.test_set_output, str(test_dataloader_idx))
+            test_data_output_dir = os.path.join(self.test_set_output,
+                                                str(test_dataloader_idx))
             os.makedirs(test_data_output_dir, exist_ok=True)
-            self.test_pred_path = os.path.join(test_data_output_dir, 'pred.csv')
-            self.test_label_path = os.path.join(test_data_output_dir, 'label.csv')
+            self.test_pred_path = os.path.join(test_data_output_dir,
+                                               'pred.csv')
+            self.test_label_path = os.path.join(test_data_output_dir,
+                                                'label.csv')
             self.create_empty_csv(self.test_pred_path,
-                                                HEADER_NAMES)
+                                  self.hparams.header_names)
             self.create_empty_csv(self.test_label_path,
-                                                    HEADER_NAMES)
+                                  self.hparams.header_names)
 
         # self.test_selection_records = self.load_records(
         #     self.test_selection_record_path, MODEL_SELECTION_RECORD_HEADERS)
@@ -170,7 +174,6 @@ class CoolSystem(pl.LightningModule):
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
-    
 
     def configure_optimizers(self):
         self.optimizer = torch.optim.Adam(self.parameters(),
@@ -188,7 +191,7 @@ class CoolSystem(pl.LightningModule):
         step_start_time = time()
         images, roi_mask, ar_mask, labels, data_load_time, _ = batch
 
-        scores = self(images,roi_mask=roi_mask, ar_mask=ar_mask)
+        scores = self(images, roi_mask=roi_mask, ar_mask=ar_mask)
         loss = self.criterion(scores, labels)
         # self.HEC_LOGGER_kun.info(f"loss : {loss.item()}")
         # ! can only return scalar tensor in training_step
@@ -280,7 +283,8 @@ class CoolSystem(pl.LightningModule):
             np.concatenate([np.array(filenames).reshape(-1, 1), np_labels],
                            axis=1))
         # set lock for avoiding concurrence problems
-        test_data_output_dir = os.path.join(self.test_set_output, str(dataloader_idx))
+        test_data_output_dir = os.path.join(self.test_set_output,
+                                            str(dataloader_idx))
         test_pred_path = os.path.join(test_data_output_dir, 'pred.csv')
         test_label_path = os.path.join(test_data_output_dir, 'label.csv')
         with FileLock(test_pred_path + '.lock'):
@@ -320,9 +324,11 @@ class CoolSystem(pl.LightningModule):
         if self.global_rank == 0:
             sleep(3)  # wait other processes to complete inference
             for dataloader_idx in range(len(outputs)):
-                test_data_output_dir = os.path.join(self.test_set_output, str(dataloader_idx))
+                test_data_output_dir = os.path.join(self.test_set_output,
+                                                    str(dataloader_idx))
                 test_pred_path = os.path.join(test_data_output_dir, 'pred.csv')
-                test_label_path = os.path.join(test_data_output_dir, 'label.csv')
+                test_label_path = os.path.join(test_data_output_dir,
+                                               'label.csv')
                 preds = pd.read_csv(test_pred_path)
                 labels = pd.read_csv(test_label_path)
                 preds = preds.sort_values(by=['filename'])
@@ -419,7 +425,7 @@ class CoolSystem(pl.LightningModule):
                                       str(self.current_epoch))
         cat_output_dir = os.path.join(self.val_cat_output,
                                       str(self.current_epoch))
-        cat_image_in_ddp(vis_output_dir, cat_output_dir)
+        cat_image_in_ddp(self.hparams, vis_output_dir, cat_output_dir)
         # compute loss
         # only process the main validation set.
         self.logger.log_metrics
@@ -429,9 +435,9 @@ class CoolSystem(pl.LightningModule):
         post_report(self.hparams, self.current_epoch, val_info.scores,
                     val_info.labels, val_info.filenames, self.val_output_dir)
 
-        write_distributed_records(self.global_rank, self.hparams.fold_i,
-                                  self.current_epoch, self.global_step,
-                                  val_info, other_info,
+        write_distributed_records(self.hparams, self.global_rank,
+                                  self.hparams.fold_i, self.current_epoch,
+                                  self.global_step, val_info, other_info,
                                   self.val_selection_record_path,
                                   self.val_performance_record_path)
         # terminal logs

@@ -241,8 +241,9 @@ def select_fn_indexes(pred, label):
 def get_roc_auc(hparams, labels, scores):
     class_num = labels.argmax(dim=1).unique()
     metric_scores = 0
-    label_class = labels.detach().cpu().numpy() # [n, num_classes], the second dim saves the one-hot vector.
-    pred_class = scores.detach().cpu().numpy() # [n, num_classes]
+    label_class = labels.detach().cpu().numpy(
+    )  # [n, num_classes], the second dim saves the one-hot vector.
+    pred_class = scores.detach().cpu().numpy()  # [n, num_classes]
     try:
         if len(class_num) == 1:
             metric_scores = torch.tensor(0)
@@ -250,22 +251,21 @@ def get_roc_auc(hparams, labels, scores):
             # print(labels)
             # label_class = np.argmax(labels.detach().cpu().numpy(), axis=1)
             # pred_class = np.argmax(scores.detach().cpu().numpy(), axis=1)
-            if hparams.metrics == 'roc_auc': 
+            if hparams.metrics == 'roc_auc':
                 metric_scores = metrics.roc_auc_score(label_class,
-                                            pred_class,
-                                            multi_class='ovo')
+                                                      pred_class,
+                                                      multi_class='ovo')
             elif hparams.metrics == 'mAP':
-                metric_scores = metrics.average_precision_score(label_class,
-                                            pred_class)
+                metric_scores = metrics.average_precision_score(
+                    label_class, pred_class)
             elif hparams.metrics == 'bn_mAP':
                 # Convert one-hot to class label.
                 bn_labels = np.argmax(label_class, axis=1)
                 bn_pred_labels = np.argmax(pred_class, axis=1)
                 bn_labels[bn_labels != 0] = 1
                 bn_pred_labels[bn_pred_labels != 0] = 1
-                metric_scores = metrics.average_precision_score(bn_labels,
-                                            bn_pred_labels)
-                
+                metric_scores = metrics.average_precision_score(
+                    bn_labels, bn_pred_labels)
 
     except Exception as e:
         traceback.print_exc()
@@ -275,14 +275,15 @@ def get_roc_auc(hparams, labels, scores):
 
 def save_false_positive(hparams, current_epoch, scores_all, labels_all,
                         filenames, output_dir):
+    classes = hparams.classes
     prefix = f'{hparams.fold_i}-{current_epoch}'
     fp_indexes = select_fn_indexes(scores_all, labels_all)
     fp_filenames = filenames[fp_indexes]
     fp_scores = torch.softmax(scores_all[fp_indexes], dim=1)
     fp_labels = labels_all[fp_indexes]  # one-hot label, [n, num_classes]
-    fp_label_names = np.array(CLASS_NAMES)[torch.argmax(
+    fp_label_names = np.array(classes)[torch.argmax(
         fp_labels, dim=1).detach().cpu().numpy()]  # label name [n, 1]
-    fp_pred_names = np.array(CLASS_NAMES)[torch.argmax(
+    fp_pred_names = np.array(classes)[torch.argmax(
         fp_scores, dim=1).detach().cpu().numpy()]  # label name [n, 1]
     output_dir = os.path.join(output_dir, 'fp')
     os.makedirs(output_dir, exist_ok=True)
@@ -292,8 +293,9 @@ def save_false_positive(hparams, current_epoch, scores_all, labels_all,
         'label': fp_label_names.reshape(-1),
         'pred': fp_pred_names.reshape(-1)
     })
-    fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(),
-                           columns=CLASS_NAMES)
+    # print(classes)
+    # pdb.set_trace()
+    fp_pred = pd.DataFrame(fp_scores.detach().cpu().numpy(), columns=classes)
     fp_df = pd.concat([df, fp_pred], axis=1)
     if not os.path.exists(save_path):
         fp_df.to_csv(save_path, index=False)
@@ -311,13 +313,19 @@ def generate_classification_report(hparams, current_epoch, scores_all,
     file_name_df = pd.DataFrame({
         'filename': filenames,
     })
-    score_df = pd.DataFrame(scores_all.detach().cpu().numpy(), columns=CLASS_NAMES)
+    score_df = pd.DataFrame(scores_all.detach().cpu().numpy(),
+                            columns=hparams.classes)
     gt_df = pd.DataFrame(labels_all.detach().cpu().numpy(),
-                         columns=CLASS_NAMES)
+                         columns=hparams.classes)
     pred_df = pd.concat([file_name_df, score_df], axis=1)
     gt_df = pd.concat([file_name_df, gt_df], axis=1)
     pred_df.to_csv(pred_save_path, index=False)
-    generate_report(pred_df, gt_df, prefix, output_dir)
+    generate_report(pred_df,
+                    gt_df,
+                    prefix,
+                    output_dir,
+                    class_names=hparams.classes,
+                    vis_all_labels=hparams.vis_all_labels)
 
 
 def post_report(hparams,
@@ -342,14 +350,14 @@ def post_report(hparams,
                                        labels_all, filenames, output_dir)
 
 
-def cat_image_in_ddp(val_epoch_out_path, cat_epoch_out_path):
+def cat_image_in_ddp(hparams, val_epoch_out_path, cat_epoch_out_path):
     """In ddp mode, the each intermidiate output are saved by different processes. This function collect them and cat 
     these images together for better visualization.
     """
     os.makedirs(cat_epoch_out_path, exist_ok=True)
     filenames = os.listdir(val_epoch_out_path)
     filenames = sorted(filenames)
-    for class_name in CLASS_NAMES:
+    for class_name in hparams.classes:
         imgs = []
         for filename in filenames:
             if filename.startswith(class_name):
@@ -398,8 +406,8 @@ def collect_other_distributed_info(hparams, outputs, created=True):
     return DotMap({'loss_mean': other_loss, 'roc_auc': other_roc_auc})
 
 
-def write_distributed_records(global_rank, fold, epoch, step, val_info,
-                              other_info, selection_record_path,
+def write_distributed_records(hparams, global_rank, fold, epoch, step,
+                              val_info, other_info, selection_record_path,
                               performance_record_path):
     try:
         labels = np.argmax(val_info.labels.detach().cpu().numpy(), axis=1)
@@ -407,7 +415,7 @@ def write_distributed_records(global_rank, fold, epoch, step, val_info,
         # labels = np.array([0, 1, 2, 3, 4, 5, 6, 7])
         # preds = np.array([1, 0, 2, 4, 3, 5, 6, 7])
         classification_results = classification_report(
-            labels, preds, target_names=CLASS_NAMES, output_dict=True)
+            labels, preds, target_names=hparams.classes, output_dict=True)
 
         base_row = {
             'Fold': fold,
@@ -431,7 +439,7 @@ def write_distributed_records(global_rank, fold, epoch, step, val_info,
                                     index=False,
                                     float_format='%.4f')
         new_performance_records = []
-        for class_name in CLASS_NAMES:
+        for class_name in hparams.classes:
             row = base_row.copy()
             row['class'] = class_name
             for k, v in classification_results[class_name].items():

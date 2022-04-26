@@ -7,6 +7,7 @@
 import os
 from time import time
 import sys
+
 sys.path.append('./')
 import pytorch_lightning as pl
 # Third party libraries
@@ -57,7 +58,7 @@ class OpticalCandlingDataset(Dataset):
     """
 
     def __init__(self,
-                 hparams, 
+                 hparams,
                  data,
                  soft_labels_filename=None,
                  transforms=None):
@@ -117,7 +118,7 @@ class OpticalCandlingDataset(Dataset):
 # class AnchorSet(OpticalCandlingDataset):
 
 #     def __init__(self,
-#                  hparams, 
+#                  hparams,
 #                  data,
 #                  soft_labels_filename=None,
 #                  transforms=None,
@@ -128,7 +129,6 @@ class OpticalCandlingDataset(Dataset):
 #             self.data.loc[self.data['filename'].str.startswith(
 #                 class_name)].head(sample_num) for class_name in CLASS_NAMES
 #         ])
-
 
 
 class OpticalCandingWithMaskSet(OpticalCandlingDataset):
@@ -149,8 +149,10 @@ class OpticalCandingWithMaskSet(OpticalCandlingDataset):
         # solution-1: read from raw image
         filename = self.data.iloc[index, 0]
         path = os.path.join(self.data_folder, filename)
-        roi_mask_path = os.path.join(self.data_mask, bsn(dirname(filename)), 'egg_mask', bsn(filename))
-        ar_mask_path = os.path.join(self.data_mask, bsn(dirname(filename)), 'ar_mask', bsn(filename))
+        roi_mask_path = os.path.join(self.data_mask, bsn(dirname(filename)),
+                                     'egg_mask', bsn(filename))
+        ar_mask_path = os.path.join(self.data_mask, bsn(dirname(filename)),
+                                    'ar_mask', bsn(filename))
         # image = cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
         image = Image.open(path).convert("RGB")
         roi_mask = Image.open(roi_mask_path)
@@ -171,7 +173,8 @@ class OpticalCandingWithMaskSet(OpticalCandlingDataset):
             image = np.array(image)
             roi_mask = np.array(roi_mask) / 255.0
             ar_mask = np.array(ar_mask) / 255.0
-            transformed = self.transforms(image=image, masks=[roi_mask, ar_mask])
+            transformed = self.transforms(image=image,
+                                          masks=[roi_mask, ar_mask])
             image = transformed['image'].transpose(2, 0, 1)
             roi_mask, ar_mask = transformed['masks']
         elif self.transforms is not None and isinstance(
@@ -281,6 +284,7 @@ def a4_transforms(hparams):
                     border_mode=cv2.BORDER_CONSTANT)
     ])
 
+
 def a5_transforms(hparams):
     return Compose([
         Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
@@ -307,19 +311,21 @@ def a5_transforms(hparams):
                   p=1.0),
     ])
 
+
 def generate_dataset(hparams, data, transforms):
     if hparams.dataset == 'base':
         return OpticalCandlingDataset(
-                hparams=hparams,
-                data=data,
-                transforms=transforms,
-                soft_labels_filename=hparams.soft_labels_filename)
+            hparams=hparams,
+            data=data,
+            transforms=transforms,
+            soft_labels_filename=hparams.soft_labels_filename)
     elif hparams.dataset == 'mask':
         return OpticalCandingWithMaskSet(
-                hparams=hparams,
-                data=data,
-                transforms=transforms,
-                soft_labels_filename=hparams.soft_labels_filename)
+            hparams=hparams,
+            data=data,
+            transforms=transforms,
+            soft_labels_filename=hparams.soft_labels_filename)
+
 
 def generate_transforms(hparams):
     if hparams.train_transforms == 'a1':
@@ -351,7 +357,9 @@ def generate_val_dataloaders(hparams, data, transforms):
     #     data=val_data,
     #     transforms=transforms["val_transforms"],
     #     soft_labels_filename=hparams.soft_labels_filename)
-    dataset = generate_dataset(hparams, data, transforms=transforms['val_transforms'])
+    dataset = generate_dataset(hparams,
+                               data,
+                               transforms=transforms['val_transforms'])
 
     sampler = MySampler(dataset, shuffle=False, drop_last=True)
     # val_dataloader = DataLoader(
@@ -463,7 +471,6 @@ def test_transform():
     test_img = np.array(test_img)
     test_mask = np.array(test_mask) / 255.0
 
-
     test_tf = a2_transforms(hparams)
     tf_image = test_tf(image=test_img, masks=[test_mask, test_mask])
     test_img = tf_image['image'].transpose(2, 0, 1)
@@ -492,6 +499,13 @@ def get_real_world_test_dataloaders(hparams, transforms):
     return real_world_test_dataloaders
 
 
+def filter_data(df: DataFrame, filter_classes):
+    for filter_class in filter_classes:
+        df.drop(df.index[df[filter_class] == 1], inplace=True)
+    df.drop(columns=filter_classes, inplace=True)
+    return df
+
+
 class ProjectDataModule(pl.LightningDataModule):
 
     def __init__(self, hparams):
@@ -506,9 +520,13 @@ class ProjectDataModule(pl.LightningDataModule):
             os.path.join(self.hparams.data_folder, self.hparams.training_set))
         self.test_data = pd.read_csv(
             os.path.join(self.hparams.data_folder, self.hparams.test_set))
+        self.data = filter_data(self.data, self.hparams.filter_classes)
+        self.test_data = filter_data(self.test_data,
+                                     self.hparams.filter_classes)
         self.anchor_data = pd.concat([
             self.test_data.loc[self.test_data['filename'].str.startswith(
-                class_name)].head(self.hparams.sample_num) for class_name in CLASS_NAMES
+                class_name)].head(self.hparams.sample_num)
+            for class_name in hparams.classes
         ])
         self.fold_indexes = {}
         for fold_i, (train_index,
@@ -529,8 +547,9 @@ class ProjectDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         # seed_reproducer(2022)
-        anchor_dataloader = generate_val_dataloaders(
-            self.hparams, self.anchor_data, self.transforms)
+        anchor_dataloader = generate_val_dataloaders(self.hparams,
+                                                     self.anchor_data,
+                                                     self.transforms)
         # real_world_test_dataloaders = get_real_world_test_dataloaders(
         # self.hparams, self.transforms)
         val_data = self.data.iloc[

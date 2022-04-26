@@ -81,7 +81,14 @@ def save_false_negative(data_folder, pred_data, gt_data, class_names,
         print(f'{class_name}: {false_positive.shape[0]}')
 
 
-def generate_report(pred_data, gt_data, pred_filename, output_dir):
+def generate_report(pred_data,
+                    gt_data,
+                    pred_filename,
+                    output_dir,
+                    bn_class_names=BN_CLASS_NAMES,
+                    class_names=CLASS_NAMES,
+                    vis_binary_labels=VIS_BINARY_LABELS,
+                    vis_all_labels=VIS_ALL_LABELS):
     fn_output_dir = os.path.join(output_dir, 'fn')
     os.makedirs(fn_output_dir, exist_ok=True)
     # Exclude first column (filename), and calculate the the prediction results, which is appended to the last column.
@@ -134,14 +141,14 @@ def generate_report(pred_data, gt_data, pred_filename, output_dir):
         # print(th_pred_labels)
         th_report = metrics.classification_report(bn_gt_labels,
                                                   th_pred_labels,
-                                                  target_names=BN_CLASS_NAMES,
+                                                  target_names=bn_class_names,
                                                   output_dict=True)
         # th_report['pos_threshold'] = th
         bn_report_path = os.path.join(
             th_output_dir, f'TH_Report_{pred_filename}_th_{th}.csv')
         th_report = save_csv_report(th_report,
                                     bn_report_path,
-                                    BN_CLASS_NAMES,
+                                    bn_class_names,
                                     pos_thresh=th)
         th_bn_reports.append(th_report)
         print(f'Report by positive threshold {th} saved into {bn_report_path}')
@@ -149,76 +156,80 @@ def generate_report(pred_data, gt_data, pred_filename, output_dir):
         save_csv_confusion_matrix(
             th_confusion_matrix,
             os.path.join(th_output_dir, f'TH_CM_{pred_filename}_th_{th}.csv'),
-            BN_CLASS_NAMES)
+            bn_class_names)
         vis_confusion_matrix(
             bn_gt_labels, th_pred_labels,
             os.path.join(th_output_dir, f'TH_CM_{pred_filename}_th_{th}.png'),
-            VIS_BINARY_LABELS)
+            vis_binary_labels)
         # except Exception as e:
         # print(f'Error while handling {th}')
         # traceback.print_exc()
     th_bn_dfs: pd.DataFrame = pd.concat(th_bn_reports).sort_values(
         by=['class', 'pos_thresh'], ascending=False)
     th_bn_dfs.to_csv(os.path.join(output_dir,
-                                   f'TH_Report_summary_{pred_filename}.csv'),
-                      index=False,
-                      float_format='%.4f')
+                                  f'TH_Report_summary_{pred_filename}.csv'),
+                     index=False,
+                     float_format='%.4f')
 
     confusion_matrix = metrics.confusion_matrix(gt_labels, pred_labels)
     report = metrics.classification_report(gt_labels,
                                            pred_labels,
-                                           target_names=CLASS_NAMES,
+                                           target_names=class_names,
                                            output_dict=True)
 
     bn_confusion_matrix = metrics.confusion_matrix(bn_gt_labels,
                                                    bn_pred_labels)
     bn_report = metrics.classification_report(bn_gt_labels,
                                               bn_pred_labels,
-                                              target_names=BN_CLASS_NAMES,
+                                              target_names=bn_class_names,
                                               output_dict=True)
 
-    report = save_csv_report(report,
-                    os.path.join(output_dir, f'Report_{pred_filename}.csv'),
-                    CLASS_NAMES)
+    report = save_csv_report(
+        report, os.path.join(output_dir, f'Report_{pred_filename}.csv'),
+        class_names)
     save_csv_confusion_matrix(
         confusion_matrix, os.path.join(output_dir, f'CM_{pred_filename}.csv'),
-        CLASS_NAMES)
+        class_names)
     vis_confusion_matrix(gt_labels, pred_labels,
                          os.path.join(output_dir, f'CM_{pred_filename}.png'),
-                         VIS_ALL_LABELS)
+                         vis_all_labels)
 
-    bn_report = save_csv_report(bn_report,
-                    os.path.join(output_dir, f'BN_Report_{pred_filename}.csv'),
-                    BN_CLASS_NAMES)
+    bn_report = save_csv_report(
+        bn_report, os.path.join(output_dir, f'BN_Report_{pred_filename}.csv'),
+        bn_class_names)
     save_csv_confusion_matrix(
         bn_confusion_matrix,
-        os.path.join(output_dir, f'BN_CM_{pred_filename}.csv'), BN_CLASS_NAMES)
+        os.path.join(output_dir, f'BN_CM_{pred_filename}.csv'), bn_class_names)
     vis_confusion_matrix(
         bn_gt_labels, bn_pred_labels,
-        os.path.join(output_dir, f'BN_CM_{pred_filename}.png'), VIS_BINARY_LABELS)
+        os.path.join(output_dir, f'BN_CM_{pred_filename}.png'),
+        vis_binary_labels)
     return report, bn_report, th_bn_reports
 
     # df = pd.DataFrame.from_dict(report)
     # df.to_csv(f'Report_{filename}.csv')
     # classification_report_csv(report, os.path.join('outputs',f'Report_{filename}.csv'))
 
+
 def remove_rows(df: pd.DataFrame, filter_values):
     for filter_value in filter_values:
         df.drop(df.index[df['class'] == filter_value], inplace=True)
     return df
 
-def compose_report(hparams, report, output_path, match_pattern, embedding_rank=-1, filter_values=['weighted avg', 'macro avg', 'accuracy']):
-    report.insert(loc=0,
-                column='Rank',
-                value=embedding_rank)
+
+def compose_report(hparams,
+                   report,
+                   output_path,
+                   match_pattern,
+                   embedding_rank=-1,
+                   filter_values=['weighted avg', 'macro avg', 'accuracy']):
+    report.insert(loc=0, column='Rank', value=embedding_rank)
     report = remove_rows(report, filter_values)
     bn_reports = [report]
     match_paths = list(Path(hparams.log_dir).glob(match_pattern))
     for rank, path in enumerate(match_paths):
         match_report = pd.read_csv(path)
-        match_report.insert(loc=0,
-                    column='Rank',
-                    value=rank)
+        match_report.insert(loc=0, column='Rank', value=rank)
         match_report = remove_rows(match_report, filter_values)
         bn_reports.append(match_report)
     df: pd.DataFrame = pd.concat(bn_reports).sort_values(
@@ -226,43 +237,79 @@ def compose_report(hparams, report, output_path, match_pattern, embedding_rank=-
     df.to_csv(output_path, index=False, float_format='%.4f')
     return df
 
+
 def handle_single_test_set(hparams, test_set_idx, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     pred_results = []
-    for path in list(Path(hparams.log_dir).glob(f'fold*/test/set/{test_set_idx}/pred.csv')):
+    for path in list(
+            Path(hparams.log_dir).glob(
+                f'fold*/test/set/{test_set_idx}/pred.csv')):
         pred_df = pd.read_csv(path).sort_values(by=['filename'])
         pred = pred_df.iloc[:, 1:].to_numpy()
         pred_results.append(pred)
     if len(pred_results) == 0:
         return
     embedding_results = np.mean(pred_results, axis=0)
-    label_df = pd.read_csv(list(Path(hparams.log_dir).glob(f'fold*/test/set/{test_set_idx}/label.csv'))[0]).sort_values(by=['filename'])
+    label_df = pd.read_csv(
+        list(
+            Path(hparams.log_dir).glob(
+                f'fold*/test/set/{test_set_idx}/label.csv'))[0]).sort_values(
+                    by=['filename'])
     embedding_df = label_df.copy()
     embedding_df.iloc[:, 1:] = embedding_results
-    report, bn_report, th_reports = generate_report(embedding_df, label_df, 'embedding', os.path.join(output_dir, 'report'))
+    report, bn_report, th_reports = generate_report(
+        embedding_df,
+        label_df,
+        'embedding',
+        os.path.join(output_dir, 'report'),
+        class_names=hparams.classes,
+        vis_all_labels=hparams.vis_all_labels)
 
     embedding_rank = len(pred_results)
 
-    multiclass_df = compose_report(hparams, report, os.path.join(output_dir, 'multiclass_summary_all.csv'),match_pattern=f'fold*/test/set/{test_set_idx}/report/Report_*.csv', embedding_rank=embedding_rank)
-    bn_df = compose_report(hparams, bn_report, os.path.join(output_dir, 'bn_summary_all.csv'),match_pattern=f'fold*/test/set/{test_set_idx}/report/BN_Report_*.csv', embedding_rank=embedding_rank)
+    multiclass_df = compose_report(
+        hparams,
+        report,
+        os.path.join(output_dir, 'multiclass_summary_all.csv'),
+        match_pattern=f'fold*/test/set/{test_set_idx}/report/Report_*.csv',
+        embedding_rank=embedding_rank)
+    bn_df = compose_report(
+        hparams,
+        bn_report,
+        os.path.join(output_dir, 'bn_summary_all.csv'),
+        match_pattern=f'fold*/test/set/{test_set_idx}/report/BN_Report_*.csv',
+        embedding_rank=embedding_rank)
     th_dfs = []
     for idx, th in enumerate(THRESH):
-        th_df = compose_report(hparams, th_reports[idx], os.path.join(output_dir, f'th_{th}_summary_all.csv'),match_pattern=f'fold*/test/set/{test_set_idx}/report/th/TH_Report*{th}.csv', 
-        embedding_rank=embedding_rank)
+        th_df = compose_report(
+            hparams,
+            th_reports[idx],
+            os.path.join(output_dir, f'th_{th}_summary_all.csv'),
+            match_pattern=
+            f'fold*/test/set/{test_set_idx}/report/th/TH_Report*{th}.csv',
+            embedding_rank=embedding_rank)
         th_dfs.append(th_df)
     return bn_df, multiclass_df, th_dfs
 
+
 def get_mean(dfs: List[DataFrame]):
-    mean: DataFrame = dfs[0].copy().sort_values(by=['Rank', 'class'], ascending=False)
-    dfs: pd.DataFrame = [df.sort_values(by=['Rank', 'class'], ascending=False) for df in dfs ]
-    mean.iloc[:, 2:] = np.mean([df.iloc[:, 2:].to_numpy() for df in dfs], axis=0)
+    mean: DataFrame = dfs[0].copy().sort_values(by=['Rank', 'class'],
+                                                ascending=False)
+    dfs: pd.DataFrame = [
+        df.sort_values(by=['Rank', 'class'], ascending=False) for df in dfs
+    ]
+    mean.iloc[:, 2:] = np.mean([df.iloc[:, 2:].to_numpy() for df in dfs],
+                               axis=0)
     mean = mean.sort_values(by=['class', 'precision', 'Rank'], ascending=False)
     return mean
+
 
 def excluse_df(dfs, exclude_idx):
     return [df for idx, df in enumerate(dfs) if idx != exclude_idx]
 
-def save_mean_df_for_real_world_sets(bn_dfs, multiclass_dfs, th_df_groups, test_pos_idx, output_dir):
+
+def save_mean_df_for_real_world_sets(bn_dfs, multiclass_dfs, th_df_groups,
+                                     test_pos_idx, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     bn_dfs = excluse_df(bn_dfs, test_pos_idx)
     multiclass_dfs = excluse_df(multiclass_dfs, test_pos_idx)
@@ -271,53 +318,35 @@ def save_mean_df_for_real_world_sets(bn_dfs, multiclass_dfs, th_df_groups, test_
     mean_multiclass_df: DataFrame = get_mean(multiclass_dfs)
     mean_th_dfs: List[DataFrame] = [get_mean(th_df) for th_df in th_df_groups]
 
-    mean_bn_df.to_csv(os.path.join(output_dir, 'bn_summary_all.csv'), index=False, float_format='%.4f')
-    mean_multiclass_df.to_csv(os.path.join(output_dir, 'multiclass_summary_all.csv'), index=False, float_format='%.4f')
-    mean_th_dfs[-1].to_csv(os.path.join(output_dir, 'th_summary_all.csv'), index=False, float_format='%.4f')
+    mean_bn_df.to_csv(os.path.join(output_dir, 'bn_summary_all.csv'),
+                      index=False,
+                      float_format='%.4f')
+    mean_multiclass_df.to_csv(os.path.join(output_dir,
+                                           'multiclass_summary_all.csv'),
+                              index=False,
+                              float_format='%.4f')
+    mean_th_dfs[-1].to_csv(os.path.join(output_dir, 'th_summary_all.csv'),
+                           index=False,
+                           float_format='%.4f')
 
 
 def post_embedding(hparams):
     output_dir = os.path.join(hparams.log_dir, 'embedding')
     os.makedirs(output_dir, exist_ok=True)
     test_set_num = hparams.test_real_world_num + 1
-    test_pos_idx = 0 # point the postion idx of exp test set, the remainted sets are real-world test sets.
+    test_pos_idx = 0  # point the postion idx of exp test set, the remainted sets are real-world test sets.
 
     bn_dfs, multiclass_dfs, th_df_groups = [], [], []
     for set_id in range(test_set_num):
         data_output_dir = os.path.join(output_dir, str(set_id))
-        bn_df, multiclass_df, th_dfs = handle_single_test_set(hparams, set_id, data_output_dir)
+        bn_df, multiclass_df, th_dfs = handle_single_test_set(
+            hparams, set_id, data_output_dir)
         bn_dfs.append(bn_df)
         multiclass_dfs.append(multiclass_df)
         th_df_groups.append(th_dfs)
-    save_mean_df_for_real_world_sets(bn_dfs, multiclass_dfs, th_df_groups, test_pos_idx, os.path.join(output_dir, 'mean'))
-
-    
-
-   
-
-    
-        
-
-
-
-
-if __name__ == '__main__':
-    X, y = datasets.make_classification(n_samples=10000,
-                                        n_classes=8,
-                                        n_informative=8,
-                                        random_state=0)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
-    clf = SVC(random_state=0)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    vis_confusion_matrix(y_test,
-                         y_pred,
-                         'test.png',
-                         display_labels=VIS_ALL_LABELS)
-
-    
-
-
+    save_mean_df_for_real_world_sets(bn_dfs, multiclass_dfs, th_df_groups,
+                                     test_pos_idx,
+                                     os.path.join(output_dir, 'mean'))
 
 
 if __name__ == '__main__':

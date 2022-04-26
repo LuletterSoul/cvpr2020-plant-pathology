@@ -44,3 +44,5 @@ metrics: mAP
 data_mask: /data/lxd/datasets/2022-04-18-Egg-Masks
 model_type: base
 dataset: base
+classes: [OK, AirRoomShake, Dead, Empty, NoAirRoom, Split, Weak, Flower]
+filter_classes: []
