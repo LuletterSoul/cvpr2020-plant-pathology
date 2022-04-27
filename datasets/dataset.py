@@ -351,7 +351,7 @@ def generate_transforms(hparams):
     }
 
 
-def generate_val_dataloaders(hparams, data, transforms):
+def generate_val_dataloader(hparams, data, transforms):
     # dataset = OpticalCandlingDataset(
     #     hparams=hparams,
     #     data=val_data,
@@ -378,7 +378,7 @@ def generate_val_dataloaders(hparams, data, transforms):
     return val_dataloader
 
 
-def generate_train_dataloaders(hparams, data, transforms):
+def generate_train_dataloader(hparams, data, transforms):
     # dataset = OpticalCandlingDataset(
     #     data_folder=hparams.data_folder,
     #     data=data,
@@ -395,13 +395,13 @@ def generate_train_dataloaders(hparams, data, transforms):
 
 
 def generate_dataloaders(hparams, train_data, val_data, transforms):
-    train_dataloader = generate_train_dataloaders(hparams, train_data,
-                                                  transforms)
-    val_dataloader = generate_val_dataloaders(hparams, val_data, transforms)
+    train_dataloader = generate_train_dataloader(hparams, train_data,
+                                                 transforms)
+    val_dataloader = generate_val_dataloader(hparams, val_data, transforms)
     return train_dataloader, val_dataloader
 
 
-def generate_test_dataloaders(hparams, data, transforms):
+def generate_test_dataloader(hparams, data, transforms):
     # dataset = OpticalCandlingDataset(
     #     data_folder=hparams.data_folder,
     #     data=test_data,
@@ -482,7 +482,15 @@ def test_transform():
     save_image(test_mask, 'test_mask.png')
 
 
-def get_real_world_test_dataloaders(hparams, transforms):
+def generate_test_dataloaders(hparams, test_datas, transforms):
+    test_dataloaders = []
+    for test_data in test_datas:
+        test_dataloaders.append(
+            generate_test_dataloader(hparams, test_data, transforms))
+    return test_dataloaders
+
+
+def get_real_word_test_datas(hparams):
     if 'test_real_world_set' not in hparams or hparams.test_real_world_set is None:
         return []
     test_paths = [
@@ -491,12 +499,11 @@ def get_real_world_test_dataloaders(hparams, transforms):
         if filename.startswith(hparams.test_real_world_set)
         and filename.endswith('.csv')
     ]
-    real_world_test_dataloaders = []
+    test_datas = []
     for filepath in test_paths[:hparams.test_real_world_num]:
         test_data = pd.read_csv(filepath)
-        real_world_test_dataloaders.append(
-            generate_test_dataloaders(hparams, test_data, transforms))
-    return real_world_test_dataloaders
+        test_datas.append(test_data)
+    return test_datas
 
 
 def filter_data(df: DataFrame, filter_classes):
@@ -523,6 +530,10 @@ class ProjectDataModule(pl.LightningDataModule):
         self.data = filter_data(self.data, self.hparams.filter_classes)
         self.test_data = filter_data(self.test_data,
                                      self.hparams.filter_classes)
+        self.real_world_test_datas = [
+            filter_data(test_data, self.hparams.filter_classes)
+            for test_data in get_real_word_test_datas(hparams)
+        ]
         self.anchor_data = pd.concat([
             self.test_data.loc[self.test_data['filename'].str.startswith(
                 class_name)].head(self.hparams.sample_num)
@@ -538,8 +549,8 @@ class ProjectDataModule(pl.LightningDataModule):
         train_data = self.data.iloc[
             self.fold_indexes[self.hparams.fold_i][0], :].reset_index(
                 drop=True)
-        train_dataloader = generate_train_dataloaders(self.hparams, train_data,
-                                                      self.transforms)
+        train_dataloader = generate_train_dataloader(self.hparams, train_data,
+                                                     self.transforms)
         self.hparams.HEC_LOGGER.info(
             f'Pid {os.getpid()}, the batches of TRAIN dataloader are {len(train_dataloader)}'
         )
@@ -547,16 +558,16 @@ class ProjectDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         # seed_reproducer(2022)
-        anchor_dataloader = generate_val_dataloaders(self.hparams,
-                                                     self.anchor_data,
-                                                     self.transforms)
+        anchor_dataloader = generate_val_dataloader(self.hparams,
+                                                    self.anchor_data,
+                                                    self.transforms)
         # real_world_test_dataloaders = get_real_world_test_dataloaders(
         # self.hparams, self.transforms)
         val_data = self.data.iloc[
             self.fold_indexes[self.hparams.fold_i][1], :].reset_index(
                 drop=True)
-        val_dataloader = generate_val_dataloaders(self.hparams, val_data,
-                                                  self.transforms)
+        val_dataloader = generate_val_dataloader(self.hparams, val_data,
+                                                 self.transforms)
         # val_dataloaders = [anchor_dataloader, val_dataloader
         #    ] + real_world_test_dataloaders
         val_dataloaders = [anchor_dataloader, val_dataloader]
@@ -568,12 +579,12 @@ class ProjectDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         # seed_reproducer(2022)
-        test_dataloaders = [
-            generate_test_dataloaders(self.hparams, self.test_data,
-                                      self.transforms)
-        ]
-        test_real_world_dataloaders = get_real_world_test_dataloaders(
-            self.hparams, self.transforms)
+        test_dataloaders = generate_test_dataloaders(self.hparams,
+                                                     [self.test_data],
+                                                     self.transforms)
+
+        test_real_world_dataloaders = generate_test_dataloaders(
+            self.hparams, self.real_world_test_datas, self.transforms)
         test_dataloaders = test_dataloaders + test_real_world_dataloaders
         for test_dataloader in test_dataloaders:
             self.hparams.HEC_LOGGER.info(

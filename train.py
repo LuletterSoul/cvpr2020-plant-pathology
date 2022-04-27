@@ -491,19 +491,18 @@ if __name__ == "__main__":
                 dirpath=checkpoint_path,
                 monitor="val_roc_auc",
                 save_top_k=hparams.save_top_k,
-                save_last=True,
                 mode="max",
                 filename=f"fold={fold_i}" +
                 "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}")
             checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"
-            other_checkpoint_callback = ModelCheckpoint(
-                dirpath=checkpoint_path,
-                monitor="other_roc_auc",
-                save_top_k=2,
-                mode="max",
-                filename=f"fold={fold_i}" +
-                "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_roc_auc:.4f}"
-            )
+            # other_checkpoint_callback = ModelCheckpoint(
+            #     dirpath=checkpoint_path,
+            #     monitor="other_roc_auc",
+            #     save_top_k=2,
+            #     mode="max",
+            #     filename=f"fold={fold_i}" +
+            #     "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_roc_auc:.4f}"
+            # )
             early_stop_callback = EarlyStopping(monitor="val_roc_auc",
                                                 patience=hparams.patience,
                                                 mode="max",
@@ -524,8 +523,8 @@ if __name__ == "__main__":
                 max_epochs=hparams.max_epochs,
                 # val_check_interval=1,
                 callbacks=[
-                    early_stop_callback, checkpoint_callback,
-                    other_checkpoint_callback
+                    early_stop_callback,
+                    checkpoint_callback  # other_checkpoint_callback
                 ],
                 precision=hparams.precision,
                 num_sanity_val_steps=0,
