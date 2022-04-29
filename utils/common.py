@@ -462,9 +462,9 @@ def write_distributed_records(hparams, global_rank, fold, epoch, step,
 def get_training_strategy(hparams):
     tm = hparams.training_mode
     if tm == 'ddp':
-        return DDPStrategy(find_unused_parameters=False)
+        return DDPStrategy(find_unused_parameters=True)
     elif tm == 'ddp2':
-        return DDP2Strategy(find_unused_parameters=False)
+        return DDP2Strategy(find_unused_parameters=True)
     elif tm == 'dp':
         return DataParallelStrategy()
 

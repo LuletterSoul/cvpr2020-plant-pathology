@@ -241,6 +241,31 @@ def a2_transforms(hparams):
                   p=1.0),
     ])
 
+def a2_1_transforms(hparams):
+    return Compose([
+        Resize(height=hparams.image_size[0], width=hparams.image_size[1]),
+        RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1),
+        OneOf([
+            MotionBlur(blur_limit=(3, 5)),
+            MedianBlur(blur_limit=(3, 5)),
+            GaussianBlur(blur_limit=(3, 5))
+        ],
+              p=0.5),
+        VerticalFlip(p=0.5),
+        HorizontalFlip(p=0.5),
+        ShiftScaleRotate(
+            shift_limit=0.1,
+            scale_limit=0.1,
+            rotate_limit=20,
+            interpolation=cv2.INTER_LINEAR,
+            border_mode=cv2.BORDER_REFLECT_101,
+            p=0.5,
+        ),
+        Normalize(mean=hparams.norm['mean'],
+                  std=hparams.norm['std'],
+                  max_pixel_value=255.0,
+                  p=1.0),
+    ])
 
 def a3_transforms(hparams):
     return Compose([

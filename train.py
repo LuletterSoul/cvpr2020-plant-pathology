@@ -24,9 +24,9 @@ from datasets.dataset import ProjectDataModule
 from sklearn.model_selection import KFold
 
 # User defined libraries
-from models import se_resnext50_32x4d, se_resnext50_32x4d_mask
+from models import se_resnext50_32x4d, se_resnext50_32x4d_arcface, se_resnext50_32x4d_mask, se_resnext50_32x4d_mask2
 from utils import init_hparams, init_logger, load_training_data, seed_reproducer, load_data
-from loss_function import CrossEntropyLossOneHot, FocalLoss
+from loss_function import AngularPenaltySMLoss, CrossEntropyLossOneHot, FocalLoss
 from lrs_scheduler import WarmRestart, warm_restart
 from utils.common import select_fn_indexes, visualization
 from PIL import Image
@@ -62,8 +62,8 @@ class CoolSystem(pl.LightningModule):
 
     def __init__(self, hparams):
         super().__init__()
-        for key in hparams.keys():
-            self.hparams[key] = hparams[key]
+        # for key in hparams.keys():
+        #     self.hparams[key] = hparams[key]
         self.hparams.update(hparams)
         # 让每次模型初始化一致, 不让只要中间有再次初始化的情况, 结果立马跑偏
         seed_reproducer(self.hparams.seed)
@@ -72,9 +72,18 @@ class CoolSystem(pl.LightningModule):
             self.model = se_resnext50_32x4d(num_classes=self.num_classes)
         elif self.hparams.model_type == 'mask':
             self.model = se_resnext50_32x4d_mask(num_classes=self.num_classes)
-        self.criterion = CrossEntropyLossOneHot()
-        # self.criterion = FocalLoss(alpha=[1] * self.num_classes,
-        #    num_classes=self.num_classes)
+        elif self.hparams.model_type == 'mask2':
+            self.model = se_resnext50_32x4d_mask2(num_classes=self.num_classes)
+        elif self.hparams.model_type == 'arcface':
+            self.model = se_resnext50_32x4d_arcface(num_classes=self.num_classes)
+        
+        if self.hparams.loss == 'cross_entropy_loss':
+            self.criterion = CrossEntropyLossOneHot()
+        elif self.hparams.loss == 'focal_loss':
+            self.criterion = FocalLoss(alpha=[1] * self.num_classes,
+            num_classes=self.num_classes)
+        elif self.hparams.loss == 'arcface_loss':
+            self.criterion = AngularPenaltySMLoss()
         self.HEC_LOGGER = init_logger('HEC', hparams.log_dir)
         # create directories for testing
         self.test_output_dir = os.path.join(hparams.log_dir,
@@ -428,7 +437,6 @@ class CoolSystem(pl.LightningModule):
         cat_image_in_ddp(self.hparams, vis_output_dir, cat_output_dir)
         # compute loss
         # only process the main validation set.
-        self.logger.log_metrics
         val_info = collect_distributed_info(self.hparams, outputs[1])
         other_info = collect_other_distributed_info(self.hparams, outputs)
 
