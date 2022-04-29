@@ -350,15 +350,14 @@ class CoolSystem(pl.LightningModule):
                             preds.iloc[:, [0]].to_numpy().reshape(-1),
                             test_data_output_dir,
                             ger_report=True)
-        # test_roc_auc = get_roc_auc(labels_all, scores_all)
         self.HEC_LOGGER.info(
             f"{self.hparams.fold_i}-{self.current_epoch} | "
             f"test_loss : {test_info.loss_mean:.4f} | "
-            f"test_roc_auc : {test_info.roc_auc:.4f} | "
+            f"test_{self.hparams.metrics} : {test_info.metrics:.4f} | "
             f"data_load_times : {test_info.data_load_times:.2f} | "
             f"batch_run_times : {test_info.batch_run_times:.2f}")
         # self.log('test_loss', test_info.test_loss_mean)
-        # self.log('test_roc_auc', test_info.test_roc_auc)
+        # self.log('test_metrics', test_info.test_roc_auc)
 
         # write_distributed_records(self.global_rank, self.hparams.fold_i,
         #                           self.current_epoch, self.global_step,
@@ -367,7 +366,7 @@ class CoolSystem(pl.LightningModule):
         #                           self.test_performance_record_path)
         return {
             "test_loss": test_info.loss_mean,
-            "test_roc_auc": test_info.roc_auc
+            f"test_{self.hparams.metrics}": test_info.metrics
         }
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
@@ -405,11 +404,6 @@ class CoolSystem(pl.LightningModule):
             data_load_time = torch.sum(data_load_time)
             scores = self(images, roi_mask=roi_mask, ar_mask=ar_mask)
             loss = self.criterion(scores, labels)
-            # self.metric(scores, labels)
-            # self.log('val_loss', loss, on_step=False, on_epoch=True)
-            # self.log('val_roc_auc', self.metric, on_step=False,on_epoch=True)
-            # self.log('other_roc_auc', other_info.roc_auc)
-            # self.log('other_loss', other_info.loss_mean)
 
         # must return key -> val_loss
         return {
@@ -454,23 +448,22 @@ class CoolSystem(pl.LightningModule):
             f"{self.hparams.fold_i}-{self.current_epoch} | "
             f"lr : {self.scheduler.get_lr()[0]:.6f} | "
             f"val_loss : {val_info.loss_mean:.4f} | "
-            f"val_roc_auc : {val_info.roc_auc:.4f} | "
+            f"val_{self.hparams.metrics} : {val_info.metrics:.4f} | "
             f"other_loss : {other_info.loss_mean:.4f} | "
-            f"other_roc_auc : {other_info.roc_auc:.4f} | "
+            f"other_{self.hparams.metrics} : {other_info.metrics:.4f} | "
             f"data_load_times : {val_info.data_load_times:.2f} | "
             f"batch_run_times : {val_info.batch_run_times:.2f}")
         # must return key -> val_loss
-        self.log('val_loss', val_info.loss_mean)
-        self.log('val_roc_auc', val_info.roc_auc)
-        self.log('other_roc_auc', other_info.roc_auc)
-        self.log('other_loss', other_info.loss_mean)
+        self.log(f'val_loss', val_info.loss_mean)
+        self.log(f'val_{self.hparams.metrics}', val_info.metrics)
+        self.log(f'other_{self.hparams.metrics}', other_info.metrics)
+        self.log(f'other_loss', other_info.loss_mean)
         return {
-            "val_loss": val_info.loss_mean,
-            "val_roc_auc": val_info.roc_auc,
-            "other_roc_auc": other_info.roc_auc,
-            "other_loss": other_info.loss_mean
+            f"val_loss": val_info.loss_mean,
+            f"val_{self.hparams.metrics}": val_info.metrics,
+            f"other_{self.hparams.metrics}": other_info.metrics,
+            f"other_loss": other_info.loss_mean
         }
-
 
 if __name__ == "__main__":
     # Make experiment reproducible
@@ -497,21 +490,21 @@ if __name__ == "__main__":
             # os.makedirs(checkpoint_path, exist_ok=True)
             checkpoint_callback = ModelCheckpoint(
                 dirpath=checkpoint_path,
-                monitor="val_roc_auc",
+                monitor=f"val_{hparams.metrics}",
                 save_top_k=hparams.save_top_k,
                 mode="max",
                 filename=f"fold={fold_i}" +
-                "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}")
-            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "-{epoch}-{val_loss:.4f}-{val_roc_auc:.4f}"
+                "-{epoch}-{val_loss:.4f}-" + f"val_{hparams.metrics:.4f}")
+            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "-{epoch}-{val_loss:.4f}-" + f"val_{hparams.metrics:.4f}"
             # other_checkpoint_callback = ModelCheckpoint(
             #     dirpath=checkpoint_path,
-            #     monitor="other_roc_auc",
+            #     monitor="other_metrics",
             #     save_top_k=2,
             #     mode="max",
             #     filename=f"fold={fold_i}" +
-            #     "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_roc_auc:.4f}"
+            #     "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_metrics:.4f}"
             # )
-            early_stop_callback = EarlyStopping(monitor="val_roc_auc",
+            early_stop_callback = EarlyStopping(monitor=f"val_{hparams.metrics}",
                                                 patience=hparams.patience,
                                                 mode="max",
                                                 verbose=True)
@@ -545,7 +538,7 @@ if __name__ == "__main__":
                 try:
                     trainer.test(ckpt_path=checkpoint_callback.best_model_path,
                                  datamodule=da)
-                    # valid_roc_auc_scores.append(
+                    # valid_metrics_scores.append(
                     # round(checkpoint_callback.best_model_score, 4))
                 except Exception as e:
                     traceback.print_exc()

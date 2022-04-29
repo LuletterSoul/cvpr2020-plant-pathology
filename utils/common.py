@@ -2,7 +2,6 @@ import pdb
 import traceback
 from dotmap import DotMap
 from matplotlib.pyplot import axis
-# from sklearn.metrics import roc_auc_score
 from sklearn import metrics
 import torch
 import sys
@@ -238,7 +237,7 @@ def select_fn_indexes(pred, label):
     return fn_indexes
 
 
-def get_roc_auc(hparams, labels, scores):
+def get_metrics(hparams, labels, scores):
     class_num = labels.argmax(dim=1).unique()
     metric_scores = 0
     label_class = labels.detach().cpu().numpy(
@@ -251,8 +250,8 @@ def get_roc_auc(hparams, labels, scores):
             # print(labels)
             # label_class = np.argmax(labels.detach().cpu().numpy(), axis=1)
             # pred_class = np.argmax(scores.detach().cpu().numpy(), axis=1)
-            if hparams.metrics == 'roc_auc':
-                metric_scores = metrics.roc_auc_score(label_class,
+            if hparams.metrics == 'metrics':
+                metric_scores = metrics.metrics_score(label_class,
                                                       pred_class,
                                                       multi_class='ovo')
             elif hparams.metrics == 'mAP':
@@ -379,7 +378,7 @@ def collect_distributed_info(hparams, outputs):
         [output["batch_run_time"] for output in outputs]).sum()
     scores_all = torch.cat([output["scores"] for output in outputs])
     labels_all = torch.cat([output["labels"] for output in outputs])
-    val_roc_auc = get_roc_auc(hparams, labels_all, scores_all)
+    metrics = get_metrics(hparams, labels_all, scores_all)
     filenames = np.concatenate([output["filenames"] for output in outputs])
     # print(f'Pid {os.getpid()} sample filename, {filenames[0]}')
     return DotMap({
@@ -387,14 +386,14 @@ def collect_distributed_info(hparams, outputs):
         'scores': torch.softmax(scores_all, axis=1),
         'labels': labels_all,
         'filenames': filenames,
-        'roc_auc': val_roc_auc,
+        'metrics': metrics,
         'data_load_times': data_load_times,
         'batch_run_times': batch_run_times
     })
 
 
 def collect_other_distributed_info(hparams, outputs, created=True):
-    other_roc_auc = 0.0
+    other_metrics = 0.0
     other_loss = torch.tensor(0.0, dtype=torch.float)
     if len(outputs) > 2 and created:
         other_infos = [
@@ -402,8 +401,8 @@ def collect_other_distributed_info(hparams, outputs, created=True):
         ]
         other_loss = torch.stack([info.loss_mean
                                   for info in other_infos]).mean()
-        other_roc_auc = np.array([info.roc_auc for info in other_infos]).mean()
-    return DotMap({'loss_mean': other_loss, 'roc_auc': other_roc_auc})
+        other_metrics = np.array([info.roc_auc for info in other_infos]).mean()
+    return DotMap({'loss_mean': other_loss, 'metrics': other_metrics})
 
 
 def write_distributed_records(hparams, global_rank, fold, epoch, step,
@@ -426,9 +425,9 @@ def write_distributed_records(hparams, global_rank, fold, epoch, step,
 
         selection_row = {
             **base_row, 'Loss': val_info.loss_mean.detach().cpu().numpy(),
-            'ROC_AUC': val_info.roc_auc,
+            'Metric': val_info.metrics,
             'Other_Loss': other_info.loss_mean.detach().cpu().numpy(),
-            'OTHER_ROC_AUC': other_info.roc_auc
+            'Other_Metric': other_info.metrics
         }
 
         new_selection_record = pd.DataFrame([selection_row])
