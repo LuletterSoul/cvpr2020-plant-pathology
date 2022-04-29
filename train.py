@@ -165,6 +165,12 @@ class CoolSystem(pl.LightningModule):
                 num_classes=self.hparams.num_classes)
         elif self.hparams.metrics == 'bn_mAP':
             self.metric = BinaryAveragePrecision(pos_label=0)
+    
+    def get_learning_rate(self):
+        if hasattr(self, 'scheduler'):
+            return self.scheduler.get_lr()[0]
+        else:
+            return self.hparams.lr
 
     def load_records(self, record_path, columns):
         if os.path.exists(record_path):
@@ -229,7 +235,7 @@ class CoolSystem(pl.LightningModule):
             [output["batch_run_time"] for output in outputs]).sum()
 
         # self.HEC_LOGGER_kun.info(self.current_epoch)
-        if self.current_epoch + 1 < (self.trainer.max_epochs - 4):
+        if self.current_epoch + 1 < (self.trainer.max_epochs - 4) and hasattr(self, 'scheduler'):
             self.scheduler = warm_restart(self.scheduler, T_mult=2)
 
         # return {"train_loss": train_loss_mean}
@@ -446,7 +452,7 @@ class CoolSystem(pl.LightningModule):
         self.HEC_LOGGER.info(
             f"Rank {self.global_rank} |"
             f"{self.hparams.fold_i}-{self.current_epoch} | "
-            f"lr : {self.scheduler.get_lr()[0]:.6f} | "
+            f"lr : {self.get_learning_rate():.6f} | "
             f"val_loss : {val_info.loss_mean:.4f} | "
             f"val_{self.hparams.metrics} : {val_info.metrics:.4f} | "
             f"other_loss : {other_info.loss_mean:.4f} | "
@@ -489,13 +495,13 @@ if __name__ == "__main__":
             checkpoint_path = os.path.join(hparams.log_dir, 'checkpoints')
             # os.makedirs(checkpoint_path, exist_ok=True)
             checkpoint_callback = ModelCheckpoint(
-                dirpath=checkpoint_path,
-                monitor=f"val_{hparams.metrics}",
-                save_top_k=hparams.save_top_k,
-                mode="max",
-                filename=f"fold={fold_i}" +
-                "-{epoch}-{val_loss:.4f}-" + f"val_{hparams.metrics:.4f}")
-            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "-{epoch}-{val_loss:.4f}-" + f"val_{hparams.metrics:.4f}"
+            dirpath=checkpoint_path,
+            monitor=f"val_{hparams.metrics}",
+            save_top_k=hparams.save_top_k,
+            mode="max",
+            filename=f"fold={fold_i}" +
+            "-{epoch}-{val_loss:.4f}-" + f"val_{hparams.metrics}:" + ":{:.4f}")
+            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "-{epoch}-{val_loss:.4f}-" + f'val_{hparams.metrics}' + '{:.4f}'
             # other_checkpoint_callback = ModelCheckpoint(
             #     dirpath=checkpoint_path,
             #     monitor="other_metrics",
