@@ -68,16 +68,17 @@ class MultiStageCoolSystem(CoolSystem):
     def configure_optimizers(self):
         if self.hparams.stage == 'pre-training':
             self.optimizer = torch.optim.Adam(self.parameters(),
-                                            lr=0.001,
-                                            betas=(0.9, 0.999),
-                                            eps=1e-08,
-                                            weight_decay=0)
+                                                lr=self.lr,
+                                                betas=(0.9, 0.999),
+                                                eps=1e-08,
+                                                weight_decay=0)
         elif self.hparams.stage == 'finetuning':
             self.optimizer = torch.optim.Adam(self.parameters(),
-                                            lr=0.0001,
-                                            betas=(0.9, 0.999),
-                                            eps=1e-08,
-                                            weight_decay=0)
+                                                lr=self.lr,
+                                                betas=(0.9, 0.999),
+                                                eps=1e-08,
+                                                weight_decay=0)
+
         return self.optimizer
     
     def on_train_epoch_start(self):
@@ -91,6 +92,7 @@ class MultiStageCoolSystem(CoolSystem):
 
 def build_trainer(hparams, callbacks):
     trainer = pl.Trainer(
+        auto_lr_find=True,
         logger=tf_logger,
         replace_sampler_ddp=False,
         fast_dev_run=hparams.debug,
@@ -156,16 +158,22 @@ if __name__ == "__main__":
             if hparams.debug:
                 logger.info(model)
             hparams.stage = 'pre-training'
-            hparams.max_epochs = 20
+            hparams.max_epochs = 50
+            # update hparams of the model
+            # model.hparams.lr = new_lr
+            # hparams.lr = 0.01
+            hparams.lr = 0.002
             model = MultiStageCoolSystem(hparams)
             logger.info(f'Stage: {hparams.stage}, epochs {hparams.max_epochs}')
             trainer = build_trainer(hparams, callbacks=[checkpoint_callback])
             if hparams.eval_mode == 'train':
+                # trainer.tune(model, datamodule=da)
                 trainer.fit(model,
                             datamodule=da,
                             ckpt_path=get_checkpoint_resume(hparams))
                 hparams.stage = 'finetuning'
-                hparams.max_epochs = 100
+                hparams.lr = 0.0005
+                hparams.max_epochs = 200
                 model = MultiStageCoolSystem(hparams)
                 logger.info(f'Stage: {hparams.stage}, epochs {hparams.max_epochs}')
                 trainer = build_trainer(hparams, callbacks=[checkpoint_callback, early_stop_callback])

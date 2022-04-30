@@ -119,44 +119,46 @@ def parse_checkpoint_meta_info(checkpoint_name):
     names = os.path.splitext(checkpoint_name)[0].split('-')
     meta = {}
     for name in names:
-        if 'fold' in name:
-            fold_i = int(name.split('=')[-1])
-            meta['fold'] = fold_i
-        if 'val_loss' in name:
-            val_loss = float(name.split('=')[-1])
-            meta['val_loss'] = val_loss
-        if 'val_roc_auc' in name:
-            val_roc_auc = float(name.split('=')[-1])
-            meta['val_roc_auc'] = val_roc_auc
-        if 'other_loss' in name:
-            other_loss = float(name.split('=')[-1])
-            meta['other_loss'] = other_loss
-        if 'other_roc_auc' in name:
-            other_roc_auc = float(name.split('=')[-1])
-            meta['other_roc_auc'] = other_roc_auc
+        # if 'fold' in name:
+        #     fold_i = int(name.split('=')[-1])
+        #     meta['fold'] = fold_i
+        # if 'val_loss' in name:
+        #     val_loss = float(name.split('=')[-1])
+        #     meta['val_loss'] = val_loss
+        # if 'val_roc_auc' in name:
+        #     val_roc_auc = float(name.split('=')[-1])
+        #     meta['val_roc_auc'] = val_roc_auc
+        # if 'other_loss' in name:
+        #     other_loss = float(name.split('=')[-1])
+        #     meta['other_loss'] = other_loss
+        # if 'other_roc_auc' in name:
+        #     other_roc_auc = float(name.split('=')[-1])
+        #     meta['other_roc_auc'] = other_roc_auc
+        k, v = name.split('=')
+        meta[k] = float(v)
     return DotMap(meta)
 
 
-def parse_checkpoint_dir(checkpoint_dir):
+def parse_checkpoint_dir(hparams, checkpoint_dir):
     checkpoint_names = os.listdir(checkpoint_dir)
     best_checkpoint_paths = {}
-    best_val_roc_auc = {}
+    best_metrics = {}
     for checkpoint_name in checkpoint_names:
         if not checkpoint_name.startswith(
                 'fold') or 'test-real-world' in checkpoint_name:
             continue
         meta = parse_checkpoint_meta_info(checkpoint_name)
-        fold = meta.fold
-        val_roc_auc = meta.val_roc_auc
+        fold = int(meta.fold)
+        metrics = meta[f'val_{hparams.metrics}']
         if fold not in best_checkpoint_paths:
             best_checkpoint_paths[fold] = os.path.join(checkpoint_dir,
                                                        checkpoint_name)
-        if fold not in best_val_roc_auc:
-            best_val_roc_auc[fold] = val_roc_auc
-        if best_val_roc_auc[fold] < val_roc_auc:
+        if fold not in best_metrics:
+            best_metrics[fold] = metrics
+        if best_metrics[fold] < metrics:
             best_checkpoint_paths[fold] = os.path.join(checkpoint_dir,
                                                        checkpoint_name)
-            best_val_roc_auc[fold] = val_roc_auc
+            best_metrics[fold] = metrics
     return DotMap(best_checkpoint_paths)
 
 
@@ -171,9 +173,9 @@ def parse_checkpoint_path(checkpoint_path):
     return DotMap({fold_i: checkpoint_path})
 
 
-def parse_checkpoint_paths(checkpoint_input):
+def parse_checkpoint_paths(hparams, checkpoint_input):
     if os.path.isdir(checkpoint_input):
-        return parse_checkpoint_dir(checkpoint_input)
+        return parse_checkpoint_dir(hparams, checkpoint_input)
     else:
         return parse_checkpoint_path(checkpoint_input)
 
@@ -233,8 +235,7 @@ def init_training_config():
         config = retrival_yaml(output)
         hparams = init_hparams(config)
         hparams.log_dir = output
-        hparams.resume_from_checkpoint = parse_checkpoint_paths(
-            resume_from_checkpoint)
+        hparams.resume_from_checkpoint = parse_checkpoint_paths(hparams,resume_from_checkpoint)
         print(f'Resume configuration from {hparams.log_dir}')
     # else:
     #     output = dirname(dirname(resume_from_checkpoint))

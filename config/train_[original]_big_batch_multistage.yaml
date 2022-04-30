@@ -1,6 +1,5 @@
 backbone: se_resnext50_32x4d
-# exp_name: original_224_pretraining&finetuning
-exp_name: original_224_mixup0.5
+exp_name: original_224_pretraining&finetuning
 description: original
 data_folder: /data/lxd/datasets/2022-04-18-Eggs
 training_set: train.csv
@@ -29,14 +28,14 @@ debug: false
 norm:
   mean: [0, 0, 0]
   std: [1, 1, 1]
-resume_from_checkpoint: /data/lxd/project/cvpr2020-plant-pathology/logs_submit/20220430200-original_224_mixup0.5/checkpoints
+resume_from_checkpoint: 
 checkpoints: null
 test_real_world_set: seed
 test_real_world_num: 10
 save_top_k: 5
 patience: 20
 clean_debug: true
-skip_folds: [0]
+skip_folds: []
 test_batch_size: 128
 train_num_workers: 8
 val_num_workers: 0

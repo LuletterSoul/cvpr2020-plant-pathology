@@ -165,12 +165,14 @@ class CoolSystem(pl.LightningModule):
                 num_classes=self.hparams.num_classes)
         elif self.hparams.metrics == 'bn_mAP':
             self.metric = BinaryAveragePrecision(pos_label=0)
+        self.beta = torch.distributions.Beta(torch.tensor([1.2]), torch.tensor([0.2]))
+        self.lr = self.hparams.lr
     
     def get_learning_rate(self):
         if hasattr(self, 'scheduler'):
             return self.scheduler.get_lr()[0]
         else:
-            return self.hparams.lr
+            return self.lr if hasattr(self, 'scheduler') else self.hparams.lr
 
     def load_records(self, record_path, columns):
         if os.path.exists(record_path):
@@ -208,6 +210,8 @@ class CoolSystem(pl.LightningModule):
 
         scores = self(images, roi_mask=roi_mask, ar_mask=ar_mask)
         loss = self.criterion(scores, labels)
+        if torch.rand(1) < 0.5:
+            images, labels = mixup(images, labels, self.beta.sample().to(images.device))
         # self.HEC_LOGGER_kun.info(f"loss : {loss.item()}")
         # ! can only return scalar tensor in training_step
         # must return key -> loss
@@ -471,6 +475,26 @@ class CoolSystem(pl.LightningModule):
             f"other_loss": other_info.loss_mean
         }
 
+def build_trainer(hparams, callbacks):
+    trainer = pl.Trainer(
+        logger=tf_logger,
+        replace_sampler_ddp=False,
+        fast_dev_run=hparams.debug,
+        strategy=get_training_strategy(hparams),
+        gpus=hparams.gpus,
+        num_nodes=1,
+        min_epochs=hparams.min_epochs,
+        max_epochs=hparams.max_epochs,
+        callbacks=callbacks,
+        precision=hparams.precision,
+        num_sanity_val_steps=0,
+        profiler=False,
+        gradient_clip_val=hparams.gradient_clip_val)
+    return trainer
+
+def compose_checkpoint_name(hparams, prefix=''):
+    return prefix + f"fold={hparams.fold_i}" + "-{epoch}-{val_loss:.4f}-" + "{" + f"val_{hparams.metrics}" + ":.4f}"
+
 if __name__ == "__main__":
     # Make experiment reproducible
     seed_reproducer(2022)
@@ -495,64 +519,37 @@ if __name__ == "__main__":
             checkpoint_path = os.path.join(hparams.log_dir, 'checkpoints')
             # os.makedirs(checkpoint_path, exist_ok=True)
             checkpoint_callback = ModelCheckpoint(
-            dirpath=checkpoint_path,
-            monitor=f"val_{hparams.metrics}",
-            save_top_k=hparams.save_top_k,
-            mode="max",
-            filename=f"fold={fold_i}" +
-            "-{epoch}-{val_loss:.4f}-" + f"val_{hparams.metrics}:" + ":{:.4f}")
-            checkpoint_callback.CHECKPOINT_NAME_LAST = f"latest-fold={fold_i}" + "-{epoch}-{val_loss:.4f}-" + f'val_{hparams.metrics}' + '{:.4f}'
-            # other_checkpoint_callback = ModelCheckpoint(
-            #     dirpath=checkpoint_path,
-            #     monitor="other_metrics",
-            #     save_top_k=2,
-            #     mode="max",
-            #     filename=f"fold={fold_i}" +
-            #     "-[test-real-world]-{epoch}-{other_loss:.3f}-{other_metrics:.4f}"
-            # )
+                dirpath=checkpoint_path,
+                monitor=f"val_{hparams.metrics}",
+                save_top_k=hparams.save_top_k,
+                mode="max",
+                filename=compose_checkpoint_name(hparams))
+            checkpoint_callback.CHECKPOINT_NAME_LAST = compose_checkpoint_name(hparams, 'latest-')
+            logger.info(checkpoint_callback.CHECKPOINT_NAME_LAST)
             early_stop_callback = EarlyStopping(monitor=f"val_{hparams.metrics}",
                                                 patience=hparams.patience,
                                                 mode="max",
                                                 verbose=True)
-
-            # Instance Model, Trainer and train model
             model = CoolSystem(hparams)
             if hparams.debug:
                 logger.info(model)
-            trainer = pl.Trainer(
-                logger=tf_logger,
-                replace_sampler_ddp=False,
-                fast_dev_run=hparams.debug,
-                strategy=get_training_strategy(hparams),
-                gpus=hparams.gpus,
-                num_nodes=1,
-                min_epochs=hparams.min_epochs,
-                max_epochs=hparams.max_epochs,
-                # val_check_interval=1,
-                callbacks=[
-                    early_stop_callback,
-                    checkpoint_callback  # other_checkpoint_callback
-                ],
-                precision=hparams.precision,
-                num_sanity_val_steps=0,
-                profiler=False,
-                gradient_clip_val=hparams.gradient_clip_val)
+            trainer = build_trainer(hparams, callbacks=[checkpoint_callback])
             if hparams.eval_mode == 'train':
                 trainer.fit(model,
                             datamodule=da,
                             ckpt_path=get_checkpoint_resume(hparams))
                 try:
                     trainer.test(ckpt_path=checkpoint_callback.best_model_path,
-                                 datamodule=da)
-                    # valid_metrics_scores.append(
+                                    datamodule=da)
+                    # valid_roc_auc_scores.append(
                     # round(checkpoint_callback.best_model_score, 4))
                 except Exception as e:
                     traceback.print_exc()
                     print('Proccessing wrong in testing.')
             elif hparams.eval_mode == 'test':
                 trainer.test(model=model,
-                             ckpt_path=get_checkpoint_resume(hparams),
-                             datamodule=da)
+                                ckpt_path=get_checkpoint_resume(hparams),
+                                datamodule=da)
         if model.global_rank == 0:
             post_embedding(hparams)
     except Exception as e:
