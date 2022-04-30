@@ -212,11 +212,6 @@ class CoolSystem(pl.LightningModule):
         loss = self.criterion(scores, labels)
         if torch.rand(1) < 0.5:
             images, labels = mixup(images, labels, self.beta.sample().to(images.device))
-        # self.HEC_LOGGER_kun.info(f"loss : {loss.item()}")
-        # ! can only return scalar tensor in training_step
-        # must return key -> loss
-        # optional return key -> progress_bar optional (MUST ALL BE TENSORS)
-        # optional return key -> log optional (MUST ALL BE TENSORS)
         data_load_time = torch.sum(data_load_time)
 
         return {
@@ -533,7 +528,7 @@ if __name__ == "__main__":
             model = CoolSystem(hparams)
             if hparams.debug:
                 logger.info(model)
-            trainer = build_trainer(hparams, callbacks=[checkpoint_callback])
+            trainer = build_trainer(hparams, callbacks=[checkpoint_callback, early_stop_callback])
             if hparams.eval_mode == 'train':
                 trainer.fit(model,
                             datamodule=da,
